@@ -173,13 +173,37 @@ impl CosmeticFilter {
 }
 
 fn is_simple_selector(selector: &str) -> bool {
-    // TODO
+    for (i, c) in selector.chars().enumerate().skip(1) {
+        if !(c == '-'
+            || c == '_'
+            || (c >= '0' && c <= '9')
+            || (c >= 'A' && c <= 'Z')
+            || (c >= 'a' && c <= 'z'))
+        {
+            if i < selector.len() - 1 {
+                // Unwrap is safe here because of the range check above
+                let next = selector.chars().nth(i + 1).unwrap();
+                if c == '['
+                    || (c == ' '
+                        && (next == '>'
+                            || next == '+'
+                            || next == '~'
+                            || next == '.'
+                            || next == '#'))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
     true
 }
 
 fn is_simple_href_selector(selector: &str, start: usize) -> bool {
-    // TODO
-    true
+    selector[start..].starts_with("href^=\"")
+        || selector[start..].starts_with("href*=\"")
+        || selector[start..].starts_with("href=\"")
 }
 
 #[cfg(test)]
