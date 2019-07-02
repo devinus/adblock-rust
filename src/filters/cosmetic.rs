@@ -118,20 +118,45 @@ impl CosmeticFilter {
             };
 
             let mut selector = &line[suffix_start_index..];
+            let mut style = None;
             if line.len() - suffix_start_index > 7 && line[suffix_start_index..].starts_with("script:") {
-                mask |= CosmeticFilterMask::SCRIPT_INJECT;
-                // TODO
+                let script_method_index = suffix_start_index + 7;
+                let mut script_selector_index_start = script_method_index;
+                let script_selector_index_end = line.len() - 1;
+
+                if line[script_method_index..].starts_with("inject(") {
+                    mask |= CosmeticFilterMask::SCRIPT_INJECT;
+                    script_selector_index_start += 7;
+                }
+
+                selector = &line[script_selector_index_start..script_selector_index_end];
             } else if line.len() - suffix_start_index > 4 && line[suffix_start_index..].starts_with("+js(") {
                 mask |= CosmeticFilterMask::SCRIPT_INJECT;
-                // TODO
+                selector = &line[suffix_start_index + 4..line.len() - 1];
             } else {
                 let mut index_after_colon = suffix_start_index;
                 while let Some(colon_index) = line[index_after_colon..].find(':') {
                     index_after_colon += colon_index + 1;
                     if line[index_after_colon..].starts_with("style") {
-                        // TODO
-                    } else if false /* TODO */ {
-                        // TODO
+                        if line.chars().nth(index_after_colon + 5) == Some('(') && line.chars().nth(line.len() - 1) == Some(')') {
+                            selector = &line[suffix_start_index..colon_index];
+                            style = Some(line[index_after_colon + 6..].to_string());
+                        } else {
+                            return Err(FilterError::FilterParseError);
+                        }
+                    } else if line[index_after_colon..].starts_with("-abp-")
+                    || line[index_after_colon..].starts_with("contains")
+                    || line[index_after_colon..].starts_with("has")
+                    || line[index_after_colon..].starts_with("if")
+                    || line[index_after_colon..].starts_with("if-not")
+                    || line[index_after_colon..].starts_with("matches-css")
+                    || line[index_after_colon..].starts_with("matches-css-after")
+                    || line[index_after_colon..].starts_with("matches-css-before")
+                    || line[index_after_colon..].starts_with("properties")
+                    || line[index_after_colon..].starts_with("subject")
+                    || line[index_after_colon..].starts_with("xpath")
+                    {
+                        return Err(FilterError::FilterParseError);
                     }
                 }
             }
@@ -164,7 +189,7 @@ impl CosmeticFilter {
                     None
                 },
                 selector: String::from(selector),
-                style: None,
+                style,
             })
         } else {
             Err(FilterError::FilterParseError)
