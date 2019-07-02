@@ -181,3 +181,113 @@ fn is_simple_href_selector(selector: &str, start: usize) -> bool {
     // TODO
     true
 }
+
+#[cfg(test)]
+mod parse_tests {
+    use super::*;
+
+    #[derive(Debug, PartialEq)]
+    struct CosmeticFilterBreakdown {
+        entities: Option<Vec<Hash>>,
+        hostnames: Option<Vec<Hash>>,
+        not_entities: Option<Vec<Hash>>,
+        not_hostnames: Option<Vec<Hash>>,
+        selector: String,
+        style: Option<String>,
+
+        unhide: bool,
+        script_inject: bool,
+        is_unicode: bool,
+        is_class_selector: bool,
+        is_id_selector: bool,
+        is_href_selector: bool,
+    }
+
+    impl From<&CosmeticFilter> for CosmeticFilterBreakdown {
+        fn from(filter: &CosmeticFilter) -> CosmeticFilterBreakdown {
+            CosmeticFilterBreakdown {
+                entities: filter.entities.as_ref().cloned(),
+                hostnames: filter.hostnames.as_ref().cloned(),
+                not_entities: filter.not_entities.as_ref().cloned(),
+                not_hostnames: filter.not_hostnames.as_ref().cloned(),
+                selector: filter.selector.clone(),
+                style: filter.style.as_ref().cloned(),
+
+                unhide: filter.mask.contains(CosmeticFilterMask::UNHIDE),
+                script_inject: filter.mask.contains(CosmeticFilterMask::SCRIPT_INJECT),
+                is_unicode: filter.mask.contains(CosmeticFilterMask::IS_UNICODE),
+                is_class_selector: filter.mask.contains(CosmeticFilterMask::IS_CLASS_SELECTOR),
+                is_id_selector: filter.mask.contains(CosmeticFilterMask::IS_ID_SELECTOR),
+                is_href_selector: filter.mask.contains(CosmeticFilterMask::IS_HREF_SELECTOR),
+            }
+        }
+    }
+
+    impl Default for CosmeticFilterBreakdown {
+        fn default() -> Self {
+            CosmeticFilterBreakdown {
+                entities: None,
+                hostnames: None,
+                not_entities: None,
+                not_hostnames: None,
+                selector: "".to_string(),
+                style: None,
+
+                unhide: false,
+                script_inject: false,
+                is_unicode: false,
+                is_class_selector: false,
+                is_id_selector: false,
+                is_href_selector: false,
+            }
+        }
+    }
+
+    #[test]
+    fn simple_selectors() {
+        {
+            let filter = CosmeticFilter::parse("##div.popup", false).unwrap();
+            let defaults = CosmeticFilterBreakdown {
+                selector: "div.popup".to_string(),
+                ..Default::default()
+            };
+            assert_eq!(defaults, (&filter).into());
+        }
+        {
+            let filter = CosmeticFilter::parse("###selector", false).unwrap();
+            let defaults = CosmeticFilterBreakdown {
+                selector: "#selector".to_string(),
+                is_id_selector: true,
+                ..Default::default()
+            };
+            assert_eq!(defaults, (&filter).into());
+        }
+        {
+            let filter = CosmeticFilter::parse("##.selector", false).unwrap();
+            let defaults = CosmeticFilterBreakdown {
+                selector: ".selector".to_string(),
+                is_class_selector: true,
+                ..Default::default()
+            };
+            assert_eq!(defaults, (&filter).into());
+        }
+        {
+            let filter = CosmeticFilter::parse("##a[href=\"foo.com\"]", false).unwrap();
+            let defaults = CosmeticFilterBreakdown {
+                selector: "a[href=\"foo.com\"]".to_string(),
+                is_href_selector: true,
+                ..Default::default()
+            };
+            assert_eq!(defaults, (&filter).into());
+        }
+        {
+            let filter = CosmeticFilter::parse("##[href=\"foo.com\"]", false).unwrap();
+            let defaults = CosmeticFilterBreakdown {
+                selector: "[href=\"foo.com\"]".to_string(),
+                is_href_selector: true,
+                ..Default::default()
+            };
+            assert_eq!(defaults, (&filter).into());
+        }
+    }
+}
