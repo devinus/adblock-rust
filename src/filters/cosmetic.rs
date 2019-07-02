@@ -3,7 +3,14 @@ use crate::utils::Hash;
 
 bitflags! {
     #[derive(Serialize, Deserialize)]
-    pub struct CosmeticFilterMask: u32 {
+    pub struct CosmeticFilterMask: u8 {
+        const UNHIDE = 1 << 0;
+        const SCRIPT_INJECT = 1 << 1;
+        const IS_UNICODE = 1 << 2;
+        const IS_CLASS_SELECTOR = 1 << 3;
+        const IS_ID_SELECTOR = 1 << 4;
+        const IS_HREF_SELECTOR = 1 << 5;
+
         // Careful with checking for NONE - will always match
         const NONE = 0;
     }
