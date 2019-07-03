@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 use crate::utils::Hash;
-use crate::filters::network::FilterError;
+
+#[derive(Debug, PartialEq)]
+pub enum CosmeticFilterError {
+    PunycodeError,
+    InvalidStyleSpecifier,
+    UnsupportedSyntax,
+    MissingSharp,
+}
 
 bitflags! {
     #[derive(Serialize, Deserialize)]
@@ -30,7 +37,7 @@ pub struct CosmeticFilter {
 }
 
 impl CosmeticFilter {
-    pub fn parse(line: &str, debug: bool) -> Result<CosmeticFilter, FilterError> {
+    pub fn parse(line: &str, debug: bool) -> Result<CosmeticFilter, CosmeticFilterError> {
         let mut mask = CosmeticFilterMask::NONE;
         if let Some(sharp_index) = line.find('#') {
             let after_sharp_index = sharp_index + 1;
@@ -60,7 +67,7 @@ impl CosmeticFilter {
                         };
                         match idna::uts46::to_ascii(&part, decode_flags) {
                             Ok(x) => hostname.push_str(&x),
-                            Err(_) => return Err(FilterError::PunycodeError),
+                            Err(_) => return Err(CosmeticFilterError::PunycodeError),
                         }
                     }
                     let negation = hostname.starts_with('~');
@@ -142,7 +149,7 @@ impl CosmeticFilter {
                             selector = &line[suffix_start_index..colon_index];
                             style = Some(line[index_after_colon + 6..].to_string());
                         } else {
-                            return Err(FilterError::FilterParseError);
+                            return Err(CosmeticFilterError::InvalidStyleSpecifier);
                         }
                     } else if line[index_after_colon..].starts_with("-abp-")
                     || line[index_after_colon..].starts_with("contains")
@@ -156,7 +163,7 @@ impl CosmeticFilter {
                     || line[index_after_colon..].starts_with("subject")
                     || line[index_after_colon..].starts_with("xpath")
                     {
-                        return Err(FilterError::FilterParseError);
+                        return Err(CosmeticFilterError::UnsupportedSyntax);
                     }
                 }
             }
@@ -192,7 +199,7 @@ impl CosmeticFilter {
                 style,
             })
         } else {
-            Err(FilterError::FilterParseError)
+            Err(CosmeticFilterError::MissingSharp)
         }
     }
 }
