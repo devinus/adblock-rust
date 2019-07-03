@@ -772,4 +772,65 @@ mod parse_tests {
             }
         );
     }
+
+    #[test]
+    fn styles() {
+        check_parse_result(
+            r#"chip.de##.video-wrapper > video[style]:style(display:block!important;padding-top:0!important;)"#,
+            CosmeticFilterBreakdown {
+                selector: r#".video-wrapper > video[style]"#.to_string(),
+                hostnames: sort_hash_domains(vec!["chip.de"]),
+                style: Some("display:block!important;padding-top:0!important;".into()),
+                is_class_selector: true,
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"allmusic.com##.advertising.medium-rectangle:style(min-height: 1px !important;)"#,
+            CosmeticFilterBreakdown {
+                selector: r#".advertising.medium-rectangle"#.to_string(),
+                hostnames: sort_hash_domains(vec!["allmusic.com"]),
+                style: Some("min-height: 1px !important;".into()),
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"quora.com##.signup_wall_prevent_scroll .SiteHeader,.signup_wall_prevent_scroll .LoggedOutFooter,.signup_wall_prevent_scroll .ContentWrapper:style(filter: none !important;)"#,
+            CosmeticFilterBreakdown {
+                selector: r#".signup_wall_prevent_scroll .SiteHeader,.signup_wall_prevent_scroll .LoggedOutFooter,.signup_wall_prevent_scroll .ContentWrapper"#.to_string(),
+                hostnames: sort_hash_domains(vec!["quora.com"]),
+                style: Some("filter: none !important;".into()),
+                is_class_selector: true,
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"imdb.com##body#styleguide-v2:style(background-color: #e3e2dd !important; background-image: none !important;)"#,
+            CosmeticFilterBreakdown {
+                selector: r#"body#styleguide-v2"#.to_string(),
+                hostnames: sort_hash_domains(vec!["imdb.com"]),
+                style: Some("background-color: #e3e2dd !important; background-image: none !important;".into()),
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"streamcloud.eu###login > div[style^="width"]:style(display: block !important)"#,
+            CosmeticFilterBreakdown {
+                selector: r#"#login > div[style^="width"]"#.to_string(),
+                hostnames: sort_hash_domains(vec!["streamcloud.eu"]),
+                style: Some("display: block !important".into()),
+                is_id_selector: true,
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"moonbit.co.in,moondoge.co.in,moonliteco.in##[src^="//coinad.com/ads/"]:style(visibility: collapse !important)"#,
+            CosmeticFilterBreakdown {
+                selector: r#"[src^="//coinad.com/ads/"]"#.to_string(),
+                hostnames: sort_hash_domains(vec!["moonbit.co.in", "moondoge.co.in", "moonliteco.in"]),
+                style: Some("visibility: collapse !important".into()),
+                ..Default::default()
+            }
+        );
+    }
 }
