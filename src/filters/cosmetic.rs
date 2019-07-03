@@ -576,4 +576,66 @@ mod parse_tests {
             }
         );
     }
+
+    #[test]
+    fn href() {
+        check_parse_result(
+            r#"##a[href$="/vghd.shtml"]"#,
+            CosmeticFilterBreakdown {
+                selector: r#"a[href$="/vghd.shtml"]"#.to_string(),
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"##a[href*=".adk2x.com/"]"#,
+            CosmeticFilterBreakdown {
+                selector: r#"a[href*=".adk2x.com/"]"#.to_string(),
+                is_href_selector: true,
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"##a[href^="//40ceexln7929.com/"]"#,
+            CosmeticFilterBreakdown {
+                selector: r#"a[href^="//40ceexln7929.com/"]"#.to_string(),
+                is_href_selector: true,
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"##a[href*=".trust.zone"]"#,
+            CosmeticFilterBreakdown {
+                selector: r#"a[href*=".trust.zone"]"#.to_string(),
+                is_href_selector: true,
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"tf2maps.net##a[href="http://forums.tf2maps.net/payments.php"]"#,
+            CosmeticFilterBreakdown {
+                selector: r#"a[href="http://forums.tf2maps.net/payments.php"]"#.to_string(),
+                hostnames: sort_hash_domains(vec!["tf2maps.net"]),
+                is_href_selector: true,
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"rarbg.to,rarbg.unblockall.org,rarbgaccess.org,rarbgmirror.com,rarbgmirror.org,rarbgmirror.xyz,rarbgproxy.com,rarbgproxy.org,rarbgunblock.com##a[href][target="_blank"] > button"#,
+            CosmeticFilterBreakdown {
+                selector: r#"a[href][target="_blank"] > button"#.to_string(),
+                hostnames: sort_hash_domains(vec![
+                     "rarbg.to",
+                     "rarbg.unblockall.org",
+                     "rarbgaccess.org",
+                     "rarbgmirror.com",
+                     "rarbgmirror.org",
+                     "rarbgmirror.xyz",
+                     "rarbgproxy.com",
+                     "rarbgproxy.org",
+                     "rarbgunblock.com",
+                ]),
+                ..Default::default()
+            }
+        );
+    }
 }
