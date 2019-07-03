@@ -319,51 +319,51 @@ mod parse_tests {
         }
     }
 
+    fn check_parse_result(rule: &str, expected: CosmeticFilterBreakdown) {
+        let filter: CosmeticFilterBreakdown = (&CosmeticFilter::parse(rule, false).unwrap()).into();
+        assert_eq!(expected, filter);
+    }
+
     #[test]
     fn simple_selectors() {
-        {
-            let filter = CosmeticFilter::parse("##div.popup", false).unwrap();
-            let defaults = CosmeticFilterBreakdown {
+        check_parse_result(
+            "##div.popup",
+            CosmeticFilterBreakdown {
                 selector: "div.popup".to_string(),
                 ..Default::default()
-            };
-            assert_eq!(defaults, (&filter).into());
-        }
-        {
-            let filter = CosmeticFilter::parse("###selector", false).unwrap();
-            let defaults = CosmeticFilterBreakdown {
+            }
+        );
+        check_parse_result(
+            "###selector",
+            CosmeticFilterBreakdown {
                 selector: "#selector".to_string(),
                 is_id_selector: true,
                 ..Default::default()
-            };
-            assert_eq!(defaults, (&filter).into());
-        }
-        {
-            let filter = CosmeticFilter::parse("##.selector", false).unwrap();
-            let defaults = CosmeticFilterBreakdown {
+            }
+        );
+        check_parse_result(
+            "##.selector",
+            CosmeticFilterBreakdown {
                 selector: ".selector".to_string(),
                 is_class_selector: true,
                 ..Default::default()
-            };
-            assert_eq!(defaults, (&filter).into());
-        }
-        {
-            let filter = CosmeticFilter::parse("##a[href=\"foo.com\"]", false).unwrap();
-            let defaults = CosmeticFilterBreakdown {
+            }
+        );
+        check_parse_result(
+            "##a[href=\"foo.com\"]",
+            CosmeticFilterBreakdown {
                 selector: "a[href=\"foo.com\"]".to_string(),
                 is_href_selector: true,
                 ..Default::default()
-            };
-            assert_eq!(defaults, (&filter).into());
-        }
-        {
-            let filter = CosmeticFilter::parse("##[href=\"foo.com\"]", false).unwrap();
-            let defaults = CosmeticFilterBreakdown {
+            }
+        );
+        check_parse_result(
+            "##[href=\"foo.com\"]",
+            CosmeticFilterBreakdown {
                 selector: "[href=\"foo.com\"]".to_string(),
                 is_href_selector: true,
                 ..Default::default()
-            };
-            assert_eq!(defaults, (&filter).into());
-        }
+            }
+        );
     }
 }
