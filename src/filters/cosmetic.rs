@@ -145,11 +145,12 @@ impl CosmeticFilter {
             } else {
                 let mut index_after_colon = suffix_start_index;
                 while let Some(colon_index) = line[index_after_colon..].find(':') {
-                    index_after_colon += colon_index + 1;
+                    let colon_index = colon_index + index_after_colon;
+                    index_after_colon = colon_index + 1;
                     if line[index_after_colon..].starts_with("style") {
                         if line.chars().nth(index_after_colon + 5) == Some('(') && line.chars().nth(line.len() - 1) == Some(')') {
                             selector = &line[suffix_start_index..colon_index];
-                            style = Some(line[index_after_colon + 6..].to_string());
+                            style = Some(line[index_after_colon + 6..line.len()-1].to_string());
                         } else {
                             return Err(CosmeticFilterError::InvalidStyleSpecifier);
                         }
@@ -170,10 +171,10 @@ impl CosmeticFilter {
                 }
             }
 
-            if !is_valid_selector(selector) {
+            if !mask.contains(CosmeticFilterMask::SCRIPT_INJECT) && !is_valid_css_selector(selector) {
                 return Err(CosmeticFilterError::InvalidCssSelector);
             } else if let Some(ref style) = style {
-                if !is_valid_style(style) {
+                if !is_valid_css_style(style) {
                     return Err(CosmeticFilterError::InvalidCssStyle);
                 }
             }
@@ -214,12 +215,12 @@ impl CosmeticFilter {
     }
 }
 
-fn is_valid_selector(_selector: &str) -> bool {
+fn is_valid_css_selector(_selector: &str) -> bool {
     // TODO
     true
 }
 
-fn is_valid_style(_style: &str) -> bool {
+fn is_valid_css_style(_style: &str) -> bool {
     // TODO
     true
 }
@@ -634,6 +635,55 @@ mod parse_tests {
                      "rarbgproxy.org",
                      "rarbgunblock.com",
                 ]),
+                ..Default::default()
+            }
+        );
+    }
+
+    #[test]
+    fn entities() {
+        check_parse_result(
+            r#"monova.*##+js(nowebrtc.js)"#,
+            CosmeticFilterBreakdown {
+                selector: r#"nowebrtc.js"#.to_string(),
+                entities: sort_hash_domains(vec!["monova"]),
+                script_inject: true,
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"monova.*##tr.success.desktop"#,
+            CosmeticFilterBreakdown {
+                selector: r#"tr.success.desktop"#.to_string(),
+                entities: sort_hash_domains(vec!["monova"]),
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"monova.*#@#script + [class] > [class]:first-child"#,
+            CosmeticFilterBreakdown {
+                selector: r#"script + [class] > [class]:first-child"#.to_string(),
+                entities: sort_hash_domains(vec!["monova"]),
+                unhide: true,
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"adshort.im,adsrt.*#@#[id*="ScriptRoot"]"#,
+            CosmeticFilterBreakdown {
+                selector: r#"[id*="ScriptRoot"]"#.to_string(),
+                hostnames: sort_hash_domains(vec!["adshort.im"]),
+                entities: sort_hash_domains(vec!["adsrt"]),
+                unhide: true,
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"downloadsource.*##.date:not(dt):style(display: block !important;)"#,
+            CosmeticFilterBreakdown {
+                selector: r#".date:not(dt)"#.to_string(),
+                entities: sort_hash_domains(vec!["downloadsource"]),
+                style: Some("display: block !important;".into()),
                 ..Default::default()
             }
         );
