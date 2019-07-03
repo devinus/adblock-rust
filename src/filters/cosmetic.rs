@@ -366,4 +366,214 @@ mod parse_tests {
             }
         );
     }
+
+    /// Produces a sorted vec of the hashes of all the given domains.
+    ///
+    /// For convenience, the return value is wrapped in a `Some()` to be consumed by a
+    /// `CosmeticFilterBreakdown`.
+    fn sort_hash_domains(domains: Vec<&str>) -> Option<Vec<Hash>> {
+        let mut hashes: Vec<_> = domains.iter().map(|d| crate::utils::fast_hash(d)).collect();
+        hashes.sort();
+        Some(hashes)
+    }
+
+    #[test]
+    fn hostnames() {
+        check_parse_result(
+            r#"u00p.com##div[class^="adv-box"]"#,
+            CosmeticFilterBreakdown {
+                selector: r#"div[class^="adv-box"]"#.to_string(),
+                hostnames: sort_hash_domains(vec!["u00p.com"]),
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"distractify.com##div[class*="AdInArticle"]"#,
+            CosmeticFilterBreakdown {
+                selector: r#"div[class*="AdInArticle"]"#.to_string(),
+                hostnames: sort_hash_domains(vec!["distractify.com"]),
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"soundtrackcollector.com,the-numbers.com##a[href^="http://affiliates.allposters.com/"]"#,
+            CosmeticFilterBreakdown {
+                selector: r#"a[href^="http://affiliates.allposters.com/"]"#.to_string(),
+                is_href_selector: true,
+                hostnames: sort_hash_domains(vec!["soundtrackcollector.com", "the-numbers.com"]),
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"thelocal.at,thelocal.ch,thelocal.de,thelocal.dk,thelocal.es,thelocal.fr,thelocal.it,thelocal.no,thelocal.se##div[class*="-widget"]"#,
+            CosmeticFilterBreakdown {
+                selector: r#"div[class*="-widget"]"#.to_string(),
+                hostnames: sort_hash_domains(vec![
+                     "thelocal.at",
+                     "thelocal.ch",
+                     "thelocal.de",
+                     "thelocal.dk",
+                     "thelocal.es",
+                     "thelocal.fr",
+                     "thelocal.it",
+                     "thelocal.no",
+                     "thelocal.se",
+                ]),
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"base64decode.org,base64encode.org,beautifyjson.org,minifyjson.org,numgen.org,pdfmrg.com,pdfspl.com,prettifycss.com,pwdgen.org,strlength.com,strreverse.com,uglifyjs.net,urldecoder.org##div[class^="banner_"]"#,
+            CosmeticFilterBreakdown {
+                selector: r#"div[class^="banner_"]"#.to_string(),
+                hostnames: sort_hash_domains(vec![
+                     "base64decode.org",
+                     "base64encode.org",
+                     "beautifyjson.org",
+                     "minifyjson.org",
+                     "numgen.org",
+                     "pdfmrg.com",
+                     "pdfspl.com",
+                     "prettifycss.com",
+                     "pwdgen.org",
+                     "strlength.com",
+                     "strreverse.com",
+                     "uglifyjs.net",
+                     "urldecoder.org"
+                ]),
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"adforum.com,alliednews.com,americustimesrecorder.com,andovertownsman.com,athensreview.com,batesvilleheraldtribune.com,bdtonline.com,channel24.pk,chickashanews.com,claremoreprogress.com,cleburnetimesreview.com,clintonherald.com,commercejournal.com,commercial-news.com,coopercrier.com,cordeledispatch.com,corsicanadailysun.com,crossville-chronicle.com,cullmantimes.com,dailyiowegian.com,dailyitem.com,daltondailycitizen.com,derrynews.com,duncanbanner.com,eagletribune.com,edmondsun.com,effinghamdailynews.com,enewscourier.com,enidnews.com,farmtalknewspaper.com,fayettetribune.com,flasharcade.com,flashgames247.com,flyergroup.com,foxsportsasia.com,gainesvilleregister.com,gloucestertimes.com,goshennews.com,greensburgdailynews.com,heraldbanner.com,heraldbulletin.com,hgazette.com,homemagonline.com,itemonline.com,jacksonvilleprogress.com,jerusalemonline.com,joplinglobe.com,journal-times.com,journalexpress.net,kexp.org,kokomotribune.com,lockportjournal.com,mankatofreepress.com,mcalesternews.com,mccrearyrecord.com,mcleansborotimesleader.com,meadvilletribune.com,meridianstar.com,mineralwellsindex.com,montgomery-herald.com,mooreamerican.com,moultrieobserver.com,muskogeephoenix.com,ncnewsonline.com,newburyportnews.com,newsaegis.com,newsandtribune.com,niagara-gazette.com,njeffersonnews.com,normantranscript.com,opposingviews.com,orangeleader.com,oskaloosa.com,ottumwacourier.com,outlookmoney.com,palestineherald.com,panews.com,paulsvalleydailydemocrat.com,pellachronicle.com,pharostribune.com,pressrepublican.com,pryordailytimes.com,randolphguide.com,record-eagle.com,register-herald.com,register-news.com,reporter.net,rockwallheraldbanner.com,roysecityheraldbanner.com,rushvillerepublican.com,salemnews.com,sentinel-echo.com,sharonherald.com,shelbyvilledailyunion.com,siteslike.com,standardmedia.co.ke,starbeacon.com,stwnewspress.com,suwanneedemocrat.com,tahlequahdailypress.com,theadanews.com,theawesomer.com,thedailystar.com,thelandonline.com,themoreheadnews.com,thesnaponline.com,tiftongazette.com,times-news.com,timesenterprise.com,timessentinel.com,timeswv.com,tonawanda-news.com,tribdem.com,tribstar.com,unionrecorder.com,valdostadailytimes.com,washtimesherald.com,waurikademocrat.com,wcoutlook.com,weatherforddemocrat.com,woodwardnews.net,wrestlinginc.com##div[style="width:300px; height:250px;"]"#,
+            CosmeticFilterBreakdown {
+                selector: r#"div[style="width:300px; height:250px;"]"#.to_string(),
+                hostnames: sort_hash_domains(vec![
+                    "adforum.com",
+                    "alliednews.com",
+                    "americustimesrecorder.com",
+                    "andovertownsman.com",
+                    "athensreview.com",
+                    "batesvilleheraldtribune.com",
+                    "bdtonline.com",
+                    "channel24.pk",
+                    "chickashanews.com",
+                    "claremoreprogress.com",
+                    "cleburnetimesreview.com",
+                    "clintonherald.com",
+                    "commercejournal.com",
+                    "commercial-news.com",
+                    "coopercrier.com",
+                    "cordeledispatch.com",
+                    "corsicanadailysun.com",
+                    "crossville-chronicle.com",
+                    "cullmantimes.com",
+                    "dailyiowegian.com",
+                    "dailyitem.com",
+                    "daltondailycitizen.com",
+                    "derrynews.com",
+                    "duncanbanner.com",
+                    "eagletribune.com",
+                    "edmondsun.com",
+                    "effinghamdailynews.com",
+                    "enewscourier.com",
+                    "enidnews.com",
+                    "farmtalknewspaper.com",
+                    "fayettetribune.com",
+                    "flasharcade.com",
+                    "flashgames247.com",
+                    "flyergroup.com",
+                    "foxsportsasia.com",
+                    "gainesvilleregister.com",
+                    "gloucestertimes.com",
+                    "goshennews.com",
+                    "greensburgdailynews.com",
+                    "heraldbanner.com",
+                    "heraldbulletin.com",
+                    "hgazette.com",
+                    "homemagonline.com",
+                    "itemonline.com",
+                    "jacksonvilleprogress.com",
+                    "jerusalemonline.com",
+                    "joplinglobe.com",
+                    "journal-times.com",
+                    "journalexpress.net",
+                    "kexp.org",
+                    "kokomotribune.com",
+                    "lockportjournal.com",
+                    "mankatofreepress.com",
+                    "mcalesternews.com",
+                    "mccrearyrecord.com",
+                    "mcleansborotimesleader.com",
+                    "meadvilletribune.com",
+                    "meridianstar.com",
+                    "mineralwellsindex.com",
+                    "montgomery-herald.com",
+                    "mooreamerican.com",
+                    "moultrieobserver.com",
+                    "muskogeephoenix.com",
+                    "ncnewsonline.com",
+                    "newburyportnews.com",
+                    "newsaegis.com",
+                    "newsandtribune.com",
+                    "niagara-gazette.com",
+                    "njeffersonnews.com",
+                    "normantranscript.com",
+                    "opposingviews.com",
+                    "orangeleader.com",
+                    "oskaloosa.com",
+                    "ottumwacourier.com",
+                    "outlookmoney.com",
+                    "palestineherald.com",
+                    "panews.com",
+                    "paulsvalleydailydemocrat.com",
+                    "pellachronicle.com",
+                    "pharostribune.com",
+                    "pressrepublican.com",
+                    "pryordailytimes.com",
+                    "randolphguide.com",
+                    "record-eagle.com",
+                    "register-herald.com",
+                    "register-news.com",
+                    "reporter.net",
+                    "rockwallheraldbanner.com",
+                    "roysecityheraldbanner.com",
+                    "rushvillerepublican.com",
+                    "salemnews.com",
+                    "sentinel-echo.com",
+                    "sharonherald.com",
+                    "shelbyvilledailyunion.com",
+                    "siteslike.com",
+                    "standardmedia.co.ke",
+                    "starbeacon.com",
+                    "stwnewspress.com",
+                    "suwanneedemocrat.com",
+                    "tahlequahdailypress.com",
+                    "theadanews.com",
+                    "theawesomer.com",
+                    "thedailystar.com",
+                    "thelandonline.com",
+                    "themoreheadnews.com",
+                    "thesnaponline.com",
+                    "tiftongazette.com",
+                    "times-news.com",
+                    "timesenterprise.com",
+                    "timessentinel.com",
+                    "timeswv.com",
+                    "tonawanda-news.com",
+                    "tribdem.com",
+                    "tribstar.com",
+                    "unionrecorder.com",
+                    "valdostadailytimes.com",
+                    "washtimesherald.com",
+                    "waurikademocrat.com",
+                    "wcoutlook.com",
+                    "weatherforddemocrat.com",
+                    "woodwardnews.net",
+                    "wrestlinginc.com",
+                ]),
+                ..Default::default()
+            }
+        );
+    }
 }
