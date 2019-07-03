@@ -833,4 +833,36 @@ mod parse_tests {
             }
         );
     }
+
+    #[test]
+    fn unicode() {
+        check_parse_result(
+            "###неделя",
+            CosmeticFilterBreakdown {
+                selector: "#неделя".to_string(),
+                is_unicode: true,
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            "неlloworlд.com#@##week",
+            CosmeticFilterBreakdown {
+                selector: "#week".to_string(),
+                hostnames: sort_hash_domains(vec!["xn--lloworl-5ggb3f.com"]),
+                is_unicode: true,
+                is_id_selector: true,
+                unhide: true,
+                ..Default::default()
+            }
+        );
+    }
+
+    #[test]
+    fn unsupported() {
+        assert!(CosmeticFilter::parse("yandex.*##.serp-item:if(:scope > div.organic div.organic__subtitle:matches-css-after(content: /[Рр]еклама/))", false).is_err());
+        assert!(CosmeticFilter::parse(r#"facebook.com,facebookcorewwwi.onion##.ego_column:if(a[href^="/campaign/landing"])"#, false).is_err());
+        assert!(CosmeticFilter::parse(r#"thedailywtf.com##.article-body > div:has(a[href*="utm_medium"])"#, false).is_err());
+        assert!(CosmeticFilter::parse(r#"readcomiconline.to##^script:has-text(this[atob)"#, false).is_err());
+        assert!(CosmeticFilter::parse("twitter.com##article:has-text(/Promoted|Gesponsert|Реклама|Promocionado/):xpath(../..)", false).is_err());
+    }
 }
