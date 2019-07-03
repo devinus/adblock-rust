@@ -7,6 +7,8 @@ pub enum CosmeticFilterError {
     InvalidStyleSpecifier,
     UnsupportedSyntax,
     MissingSharp,
+    InvalidCssStyle,
+    InvalidCssSelector,
 }
 
 bitflags! {
@@ -168,6 +170,14 @@ impl CosmeticFilter {
                 }
             }
 
+            if !is_valid_selector(selector) {
+                return Err(CosmeticFilterError::InvalidCssSelector);
+            } else if let Some(ref style) = style {
+                if !is_valid_style(style) {
+                    return Err(CosmeticFilterError::InvalidCssStyle);
+                }
+            }
+
             if !selector.is_ascii() {
                 mask |= CosmeticFilterMask::IS_UNICODE;
             }
@@ -202,6 +212,16 @@ impl CosmeticFilter {
             Err(CosmeticFilterError::MissingSharp)
         }
     }
+}
+
+fn is_valid_selector(_selector: &str) -> bool {
+    // TODO
+    true
+}
+
+fn is_valid_style(_style: &str) -> bool {
+    // TODO
+    true
 }
 
 fn is_simple_selector(selector: &str) -> bool {
