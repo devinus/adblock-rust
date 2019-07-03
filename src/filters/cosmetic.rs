@@ -641,6 +641,90 @@ mod parse_tests {
     }
 
     #[test]
+    fn injected_scripts() {
+        check_parse_result(
+            r#"hentaifr.net,jeu.info,tuxboard.com,xstory-fr.com##+js(goyavelab-defuser.js)"#,
+            CosmeticFilterBreakdown {
+                selector: r#"goyavelab-defuser.js"#.to_string(),
+                hostnames: sort_hash_domains(vec![
+                    "hentaifr.net",
+                    "jeu.info",
+                    "tuxboard.com",
+                    "xstory-fr.com",
+                ]),
+                script_inject: true,
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"haus-garten-test.de,sozialversicherung-kompetent.de##+js(set-constant.js, Object.keys, trueFunc)"#,
+            CosmeticFilterBreakdown {
+                selector: r#"set-constant.js, Object.keys, trueFunc"#.to_string(),
+                hostnames: sort_hash_domains(vec!["haus-garten-test.de", "sozialversicherung-kompetent.de"]),
+                script_inject: true,
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"airliners.de,auszeit.bio,autorevue.at,clever-tanken.de,fanfiktion.de,finya.de,frag-mutti.de,frustfrei-lernen.de,fussballdaten.de,gameswelt.*,liga3-online.de,lz.de,mt.de,psychic.de,rimondo.com,spielen.de,weltfussball.at,weristdeinfreund.de##+js(abort-current-inline-script.js, Number.isNaN)"#,
+            CosmeticFilterBreakdown {
+                selector: r#"abort-current-inline-script.js, Number.isNaN"#.to_string(),
+                hostnames: sort_hash_domains(vec![
+                    "airliners.de",
+                    "auszeit.bio",
+                    "autorevue.at",
+                    "clever-tanken.de",
+                    "fanfiktion.de",
+                    "finya.de",
+                    "frag-mutti.de",
+                    "frustfrei-lernen.de",
+                    "fussballdaten.de",
+                    "liga3-online.de",
+                    "lz.de",
+                    "mt.de",
+                    "psychic.de",
+                    "rimondo.com",
+                    "spielen.de",
+                    "weltfussball.at",
+                    "weristdeinfreund.de",
+                ]),
+                entities: sort_hash_domains(vec![
+                    "gameswelt",
+                ]),
+                script_inject: true,
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"prad.de##+js(abort-on-property-read.js, document.cookie)"#,
+            CosmeticFilterBreakdown {
+                selector: r#"abort-on-property-read.js, document.cookie"#.to_string(),
+                hostnames: sort_hash_domains(vec!["prad.de"]),
+                script_inject: true,
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"computerbild.de##+js(abort-on-property-read.js, Date.prototype.toUTCString)"#,
+            CosmeticFilterBreakdown {
+                selector: r#"abort-on-property-read.js, Date.prototype.toUTCString"#.to_string(),
+                hostnames: sort_hash_domains(vec!["computerbild.de"]),
+                script_inject: true,
+                ..Default::default()
+            }
+        );
+        check_parse_result(
+            r#"computerbild.de##+js(setTimeout-defuser.js, ())return)"#,
+            CosmeticFilterBreakdown {
+                selector: r#"setTimeout-defuser.js, ())return"#.to_string(),
+                hostnames: sort_hash_domains(vec!["computerbild.de"]),
+                script_inject: true,
+                ..Default::default()
+            }
+        );
+    }
+
+    #[test]
     fn entities() {
         check_parse_result(
             r#"monova.*##+js(nowebrtc.js)"#,
