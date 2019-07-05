@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use crate::utils::Hash;
 
+use css_validation::{is_valid_css_selector, is_valid_css_style};
+
 #[derive(Debug, PartialEq)]
 pub enum CosmeticFilterError {
     PunycodeError,
@@ -215,14 +217,87 @@ impl CosmeticFilter {
     }
 }
 
-fn is_valid_css_selector(_selector: &str) -> bool {
-    // TODO
-    true
-}
+mod css_validation {
+    use cssparser::ParserInput;
+    use cssparser::Parser;
+    use selectors::parser::Selector;
 
-fn is_valid_css_style(_style: &str) -> bool {
-    // TODO
-    true
+    use std::fmt::{Display, Formatter, Error};
+    use core::fmt::{Write, Result as FmtResult};
+
+    pub fn is_valid_css_selector(selector: &str) -> bool {
+        let mut pi = ParserInput::new(selector);
+        let mut parser = Parser::new(&mut pi);
+        let r = Selector::parse(&SelectorParseImpl, &mut parser);
+        r.is_ok()
+    }
+
+    pub fn is_valid_css_style(_style: &str) -> bool {
+        // TODO
+        true
+    }
+
+    struct SelectorParseImpl;
+
+    impl<'i> selectors::parser::Parser<'i> for SelectorParseImpl {
+        type Impl = SelectorImpl;
+        type Error = selectors::parser::SelectorParseErrorKind<'i>;
+    }
+
+    #[derive(Debug, Clone)]
+    struct SelectorImpl;
+
+    impl selectors::parser::SelectorImpl for SelectorImpl {
+        type ExtraMatchingData = ();
+        type AttrValue = DummyValue;
+        type Identifier = DummyValue;
+        type ClassName = DummyValue;
+        type LocalName = String;
+        type NamespaceUrl = String;
+        type NamespacePrefix = DummyValue;
+        type BorrowedNamespaceUrl = String;
+        type BorrowedLocalName = String;
+        type NonTSPseudoClass = NonTSPseudoClass;
+        type PseudoElement = PseudoElement;
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, Default)]
+    struct DummyValue;
+
+    impl Display for DummyValue {
+        fn fmt(&self, _: &mut Formatter) -> Result<(), Error> { Ok(()) }
+    }
+
+    impl<'a> From<&'a str> for DummyValue {
+        fn from(_: &'a str) -> Self { DummyValue }
+    }
+
+    #[derive(Clone, PartialEq, Eq)]
+    struct NonTSPseudoClass;
+
+    impl selectors::parser::NonTSPseudoClass for NonTSPseudoClass {
+        type Impl = SelectorImpl;
+        fn is_active_or_hover(&self) -> bool { false }
+    }
+
+    impl cssparser::ToCss for NonTSPseudoClass {
+        fn to_css<W: Write>(&self, _: &mut W) -> FmtResult { Ok(()) }
+    }
+
+    #[derive(Clone, PartialEq, Eq)]
+    struct PseudoElement;
+
+    impl selectors::parser::PseudoElement for PseudoElement {
+        type Impl = SelectorImpl;
+
+        fn supports_pseudo_class(&self, _pseudo_class: &NonTSPseudoClass) -> bool { true }
+
+        fn valid_after_slotted(&self) -> bool { true }
+    }
+
+    impl cssparser::ToCss for PseudoElement {
+        fn to_css<W: Write>(&self, _dest: &mut W) -> FmtResult { Ok(()) }
+    }
 }
 
 fn is_simple_selector(selector: &str) -> bool {
