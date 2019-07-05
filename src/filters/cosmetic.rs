@@ -298,6 +298,17 @@ mod css_validation {
     impl cssparser::ToCss for PseudoElement {
         fn to_css<W: Write>(&self, _dest: &mut W) -> FmtResult { Ok(()) }
     }
+
+    #[test]
+    fn bad_selector_inputs() {
+        assert!(!is_valid_css_selector(r#"rm -rf ./*"#));
+        assert!(!is_valid_css_selector(r#"javascript:alert("hacked")"#));
+        assert!(!is_valid_css_selector(r#"This is not a CSS selector."#));
+        assert!(!is_valid_css_selector(r#"./malware.sh"#));
+        assert!(!is_valid_css_selector(r#"https://safesite.ru"#));
+        assert!(!is_valid_css_selector(r#"(function(){var e=60;return String.fromCharCode(e.charCodeAt(0))})();"#));
+        assert!(!is_valid_css_selector(r#"#!/usr/bin/sh"#));
+    }
 }
 
 fn is_simple_selector(selector: &str) -> bool {
