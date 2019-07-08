@@ -128,6 +128,48 @@ impl CosmeticFilter {
         Ok((entities, not_entities, hostnames, not_hostnames))
     }
 
+    /// Parses the contents of a cosmetic filter rule following the `##` or `#@#` separator.
+    ///
+    /// On success, updates the contents of `selector` and `style` according to the rule.
+    ///
+    /// This should only be called if the rule part after the separator has been confirmed not to
+    /// be a script injection rule, either with `+js` or `:script`.
+    #[inline]
+    fn parse_after_sharp_nonscript<'a>(
+        line: &'a str,
+        suffix_start_index: usize,
+        selector: &mut &'a str,
+        style: &mut Option<String>
+    ) -> Result<(), CosmeticFilterError> {
+        let mut index_after_colon = suffix_start_index;
+        while let Some(colon_index) = line[index_after_colon..].find(':') {
+            let colon_index = colon_index + index_after_colon;
+            index_after_colon = colon_index + 1;
+            if line[index_after_colon..].starts_with("style") {
+                if line.chars().nth(index_after_colon + 5) == Some('(') && line.chars().nth(line.len() - 1) == Some(')') {
+                    *selector = &line[suffix_start_index..colon_index];
+                    *style = Some(line[index_after_colon + 6..line.len()-1].to_string());
+                } else {
+                    return Err(CosmeticFilterError::InvalidStyleSpecifier);
+                }
+            } else if line[index_after_colon..].starts_with("-abp-")
+            || line[index_after_colon..].starts_with("contains")
+            || line[index_after_colon..].starts_with("has")
+            || line[index_after_colon..].starts_with("if")
+            || line[index_after_colon..].starts_with("if-not")
+            || line[index_after_colon..].starts_with("matches-css")
+            || line[index_after_colon..].starts_with("matches-css-after")
+            || line[index_after_colon..].starts_with("matches-css-before")
+            || line[index_after_colon..].starts_with("properties")
+            || line[index_after_colon..].starts_with("subject")
+            || line[index_after_colon..].starts_with("xpath")
+            {
+                return Err(CosmeticFilterError::UnsupportedSyntax);
+            }
+        }
+        Ok(())
+    }
+
     /// Parse the rule in `line` into a `CosmeticFilter`. If `debug` is true, the original rule
     /// will be reported in the resulting `CosmeticFilter` struct as well.
     pub fn parse(line: &str, debug: bool) -> Result<CosmeticFilter, CosmeticFilterError> {
@@ -174,32 +216,7 @@ impl CosmeticFilter {
                 mask |= CosmeticFilterMask::SCRIPT_INJECT;
                 selector = &line[suffix_start_index + 4..line.len() - 1];
             } else {
-                let mut index_after_colon = suffix_start_index;
-                while let Some(colon_index) = line[index_after_colon..].find(':') {
-                    let colon_index = colon_index + index_after_colon;
-                    index_after_colon = colon_index + 1;
-                    if line[index_after_colon..].starts_with("style") {
-                        if line.chars().nth(index_after_colon + 5) == Some('(') && line.chars().nth(line.len() - 1) == Some(')') {
-                            selector = &line[suffix_start_index..colon_index];
-                            style = Some(line[index_after_colon + 6..line.len()-1].to_string());
-                        } else {
-                            return Err(CosmeticFilterError::InvalidStyleSpecifier);
-                        }
-                    } else if line[index_after_colon..].starts_with("-abp-")
-                    || line[index_after_colon..].starts_with("contains")
-                    || line[index_after_colon..].starts_with("has")
-                    || line[index_after_colon..].starts_with("if")
-                    || line[index_after_colon..].starts_with("if-not")
-                    || line[index_after_colon..].starts_with("matches-css")
-                    || line[index_after_colon..].starts_with("matches-css-after")
-                    || line[index_after_colon..].starts_with("matches-css-before")
-                    || line[index_after_colon..].starts_with("properties")
-                    || line[index_after_colon..].starts_with("subject")
-                    || line[index_after_colon..].starts_with("xpath")
-                    {
-                        return Err(CosmeticFilterError::UnsupportedSyntax);
-                    }
-                }
+                CosmeticFilter::parse_after_sharp_nonscript(line, suffix_start_index, &mut selector, &mut style)?;
             }
 
             if !mask.contains(CosmeticFilterMask::SCRIPT_INJECT) && !is_valid_css_selector(selector) {
