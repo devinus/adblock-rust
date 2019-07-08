@@ -1151,3 +1151,134 @@ mod util_tests {
         assert_eq!(get_hostname_without_public_suffix("foo.bar.com", "bar.com"), Some("foo.bar"));
     }
 }
+
+#[cfg(test)]
+mod matching_tests {
+    use super::*;
+
+    #[test]
+    fn generic_filter() {
+        let rule = CosmeticFilter::parse("##.selector", false).unwrap();
+        assert!(rule.matches("foo.com", "foo.com"));
+    }
+
+    #[test]
+    fn single_domain() {
+        let rule = CosmeticFilter::parse("foo.com##.selector", false).unwrap();
+        assert!(rule.matches("foo.com", "foo.com"));
+        assert!(!rule.matches("bar.com", "bar.com"));
+    }
+
+    #[test]
+    fn multiple_domains() {
+        let rule = CosmeticFilter::parse("foo.com,test.com##.selector", false).unwrap();
+        assert!(rule.matches("foo.com", "foo.com"));
+        assert!(rule.matches("test.com", "test.com"));
+        assert!(!rule.matches("bar.com", "bar.com"));
+    }
+
+    #[test]
+    fn subdomain() {
+        let rule = CosmeticFilter::parse("foo.com,test.com##.selector", false).unwrap();
+        assert!(rule.matches("sub.foo.com", "foo.com"));
+        assert!(rule.matches("sub.test.com", "test.com"));
+
+        let rule = CosmeticFilter::parse("foo.com,sub.test.com##.selector", false).unwrap();
+        assert!(rule.matches("sub.test.com", "test.com"));
+        assert!(!rule.matches("test.com", "test.com"));
+        assert!(!rule.matches("com", "com"));
+    }
+
+    #[test]
+    fn entity() {
+        let rule = CosmeticFilter::parse("foo.com,sub.test.*##.selector", false).unwrap();
+        assert!(rule.matches("foo.com", "foo.com"));
+        assert!(rule.matches("bar.foo.com", "foo.com"));
+        assert!(rule.matches("sub.test.com", "test.com"));
+        assert!(rule.matches("sub.test.fr", "test.fr"));
+        assert!(!rule.matches("sub.test.evil.biz", "evil.biz"));
+
+        let rule = CosmeticFilter::parse("foo.*##.selector", false).unwrap();
+        assert!(rule.matches("foo.co.uk", "foo.co.uk"));
+        assert!(rule.matches("bar.foo.co.uk", "foo.co.uk"));
+        assert!(rule.matches("baz.bar.foo.co.uk", "foo.co.uk"));
+        assert!(!rule.matches("foo.evil.biz", "evil.biz"));
+    }
+
+    #[test]
+    fn nonmatching() {
+        let rule = CosmeticFilter::parse("foo.*##.selector", false).unwrap();
+        assert!(!rule.matches("foo.bar.com", "bar.com"));
+        assert!(!rule.matches("bar-foo.com", "bar-foo.com"));
+    }
+
+    #[test]
+    fn entity_negations() {
+        let rule = CosmeticFilter::parse("~foo.*##.selector", false).unwrap();
+        assert!(!rule.matches("foo.com", "foo.com"));
+        assert!(rule.matches("foo.evil.biz", "evil.biz"));
+
+        let rule = CosmeticFilter::parse("~foo.*,~bar.*##.selector", false).unwrap();
+        assert!(rule.matches("baz.com", "baz.com"));
+        assert!(!rule.matches("foo.com", "foo.com"));
+        assert!(!rule.matches("sub.foo.com", "foo.com"));
+        assert!(!rule.matches("bar.com", "bar.com"));
+        assert!(!rule.matches("sub.bar.com", "bar.com"));
+    }
+
+    #[test]
+    fn hostname_negations() {
+        let rule = CosmeticFilter::parse("~foo.com##.selector", false).unwrap();
+        assert!(!rule.matches("foo.com", "foo.com"));
+        assert!(!rule.matches("bar.foo.com", "foo.com"));
+        assert!(rule.matches("foo.com.bar", "com.bar"));
+        assert!(rule.matches("foo.co.uk", "foo.co.uk"));
+
+        let rule = CosmeticFilter::parse("~foo.com,~foo.de,~bar.com##.selector", false).unwrap();
+        assert!(!rule.matches("foo.com", "foo.com"));
+        assert!(!rule.matches("sub.foo.com", "foo.com"));
+        assert!(!rule.matches("foo.de", "foo.de"));
+        assert!(!rule.matches("sub.foo.de", "foo.de"));
+        assert!(!rule.matches("bar.com", "bar.com"));
+        assert!(!rule.matches("sub.bar.com", "bar.com"));
+        assert!(rule.matches("bar.de", "bar.de"));
+        assert!(rule.matches("sub.bar.de", "bar.de"));
+    }
+
+    #[test]
+    fn entity_with_suffix_exception() {
+        let rule = CosmeticFilter::parse("foo.*,~foo.com##.selector", false).unwrap();
+        assert!(!rule.matches("foo.com", "foo.com"));
+        assert!(!rule.matches("sub.foo.com", "foo.com"));
+        assert!(rule.matches("foo.de", "foo.de"));
+        assert!(rule.matches("sub.foo.de", "foo.de"));
+    }
+
+    #[test]
+    fn entity_with_subdomain_exception() {
+        let rule = CosmeticFilter::parse("foo.*,~sub.foo.*##.selector", false).unwrap();
+        assert!(rule.matches("foo.com", "foo.com"));
+        assert!(rule.matches("foo.de", "foo.de"));
+        assert!(!rule.matches("sub.foo.com", "foo.com"));
+        assert!(!rule.matches("bar.com", "bar.com"));
+        assert!(rule.matches("sub2.foo.com", "foo.com"));
+    }
+
+    #[test]
+    fn no_domain_provided() {
+        let rule = CosmeticFilter::parse("foo.*##.selector", false).unwrap();
+        assert!(!rule.matches("foo.com", ""));
+    }
+
+    #[test]
+    fn no_hostname_provided() {
+        let rule = CosmeticFilter::parse("domain.com##.selector", false).unwrap();
+        assert!(!rule.matches("", ""));
+        let rule = CosmeticFilter::parse("domain.*##.selector", false).unwrap();
+        assert!(!rule.matches("", ""));
+        let rule = CosmeticFilter::parse("~domain.*##.selector", false).unwrap();
+        assert!(!rule.matches("", ""));
+        let rule = CosmeticFilter::parse("~domain.com##.selector", false).unwrap();
+        assert!(!rule.matches("", ""));
+    }
+}
