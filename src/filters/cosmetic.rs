@@ -280,35 +280,27 @@ impl CosmeticFilter {
         };
 
         if let Some(ref not_hostnames) = self.not_hostnames {
-            for hostname_hash in hostname_hashes.iter() {
-                if bin_lookup(not_hostnames, *hostname_hash) {
-                    return false;
-                }
+            if hostname_hashes.iter().any(|hash| bin_lookup(not_hostnames, *hash)) {
+                return false;
             }
         }
 
         if let Some(ref not_entities) = self.not_entities {
-            for entity_hash in entity_hashes.iter() {
-                if bin_lookup(not_entities, *entity_hash) {
-                    return false;
-                }
+            if entity_hashes.iter().any(|hash| bin_lookup(not_entities, *hash)) {
+                return false;
             }
         }
 
         if self.hostnames.is_some() || self.entities.is_some() {
             if let Some(ref hostnames) = self.hostnames {
-                for hostname_hash in hostname_hashes.iter() {
-                    if bin_lookup(hostnames, *hostname_hash) {
-                        return true;
-                    }
+                if hostname_hashes.iter().any(|hash| bin_lookup(hostnames, *hash)) {
+                    return true;
                 }
             }
 
             if let Some(ref entities) = self.entities {
-                for entity_hash in entity_hashes.iter() {
-                    if bin_lookup(entities, *entity_hash) {
-                        return true;
-                    }
+                if entity_hashes.iter().any(|hash| bin_lookup(entities, *hash)) {
+                    return true;
                 }
             }
 
