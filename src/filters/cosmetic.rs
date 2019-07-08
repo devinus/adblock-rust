@@ -1,7 +1,7 @@
 //! Tools for blocking at a page-content level, including CSS selector-based filtering and content
 //! script injection.
 use serde::{Deserialize, Serialize};
-use crate::utils::Hash;
+use crate::utils::{ bin_lookup, Hash };
 
 use css_validation::{is_valid_css_selector, is_valid_css_style};
 
@@ -250,6 +250,124 @@ impl CosmeticFilter {
             Err(CosmeticFilterError::MissingSharp)
         }
     }
+
+    fn has_hostname_constraint(&self) -> bool {
+        self.hostnames.is_some() ||
+            self.entities.is_some() ||
+            self.not_entities.is_some() ||
+            self.not_hostnames.is_some()
+    }
+
+    pub fn matches(&self, hostname: &str, domain: &str) -> bool {
+        let has_hostname_constraint = self.has_hostname_constraint();
+        if !has_hostname_constraint {
+            return true;
+        }
+        if hostname.is_empty() && has_hostname_constraint {
+            return false;
+        }
+
+        let entity_hashes = if self.entities.is_some() || self.not_entities.is_some() {
+            get_entity_hashes_from_labels(hostname, domain)
+        } else {
+            vec![]
+        };
+
+        let hostname_hashes = if self.hostnames.is_some() || self.not_hostnames.is_some() {
+            get_hostname_hashes_from_labels(hostname, domain)
+        } else {
+            vec![]
+        };
+
+        if let Some(ref not_hostnames) = self.not_hostnames {
+            for hostname_hash in hostname_hashes.iter() {
+                if bin_lookup(not_hostnames, *hostname_hash) {
+                    return false;
+                }
+            }
+        }
+
+        if let Some(ref not_entities) = self.not_entities {
+            for entity_hash in entity_hashes.iter() {
+                if bin_lookup(not_entities, *entity_hash) {
+                    return false;
+                }
+            }
+        }
+
+        if self.hostnames.is_some() || self.entities.is_some() {
+            if let Some(ref hostnames) = self.hostnames {
+                for hostname_hash in hostname_hashes.iter() {
+                    if bin_lookup(hostnames, *hostname_hash) {
+                        return true;
+                    }
+                }
+            }
+
+            if let Some(ref entities) = self.entities {
+                for entity_hash in entity_hashes.iter() {
+                    if bin_lookup(entities, *entity_hash) {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        true
+    }
+}
+
+/// ('com', 'com') -> None
+/// ('foo.com', 'foo.com') -> 'foo'
+/// ('foo.bar.com', 'bar.com') -> 'foo.bar'
+fn get_hostname_without_public_suffix<'a>(hostname: &'a str, domain: &str) -> Option<&'a str> {
+    let mut hostname_without_public_suffix = None;
+
+    let index_of_dot = domain.find('.');
+
+    if let Some(index_of_dot) = index_of_dot {
+        let public_suffix = &domain[index_of_dot + 1..];
+        hostname_without_public_suffix = Some(&hostname[0..hostname.len() - public_suffix.len() - 1]);
+    }
+
+    hostname_without_public_suffix
+}
+
+/// ('foo.bar.baz', 11, 11) -> ['baz', 'bar.baz', 'foo.bar.baz'].map(hash_hostname)
+/// ('foo.bar.baz.com', 15, 8) -> ['baz.com', 'bar.baz.com', 'foo.bar.baz.com'].map(hash_hostname)
+/// ('foo.bar.baz.com', 11, 11) -> ['baz', 'bar.baz', 'foo.bar.baz'].map(hash_hostname)
+/// ('foo.bar.baz.com', 11, 8) -> ['baz', 'bar.baz', 'foo.bar.baz'].map(hash_hostname)
+fn get_hashes_from_labels(hostname: &str, end: usize, start_of_domain: usize) -> Vec<Hash> {
+    let mut hashes = vec![];
+    let mut dot_ptr = start_of_domain;
+
+    while let Some(dot_index) = hostname[..dot_ptr].rfind('.') {
+        dot_ptr = dot_index;
+        hashes.push(crate::utils::fast_hash(&hostname[dot_ptr + 1..end]));
+    }
+
+    hashes.push(crate::utils::fast_hash(&hostname[..end]));
+
+    hashes
+}
+
+fn get_entity_hashes_from_labels(hostname: &str, domain: &str) -> Vec<Hash> {
+    let hostname_without_public_suffix = get_hostname_without_public_suffix(hostname, domain);
+    if let Some(hostname_without_public_suffix) = hostname_without_public_suffix {
+        get_hashes_from_labels(
+            hostname_without_public_suffix,
+            hostname_without_public_suffix.len(),
+            hostname_without_public_suffix.len(),
+        )
+    } else {
+        vec![]
+    }
+}
+
+fn get_hostname_hashes_from_labels(hostname: &str, domain: &str) -> Vec<Hash> {
+    get_hashes_from_labels(hostname, hostname.len(), hostname.len() - domain.len())
 }
 
 mod css_validation {
