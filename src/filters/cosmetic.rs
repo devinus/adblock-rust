@@ -1128,3 +1128,26 @@ mod parse_tests {
         assert!(CosmeticFilter::parse("twitter.com##article:has-text(/Promoted|Gesponsert|Реклама|Promocionado/):xpath(../..)", false).is_err());
     }
 }
+
+#[cfg(test)]
+mod util_tests {
+    use super::*;
+    use crate::utils::fast_hash;
+
+    #[test]
+    fn label_hashing() {
+        assert_eq!(get_hashes_from_labels("foo.bar.baz", 11, 11), vec![fast_hash("baz"), fast_hash("bar.baz"), fast_hash("foo.bar.baz")]);
+        assert_eq!(get_hashes_from_labels("foo.bar.baz.com", 15, 8), vec![fast_hash("baz.com"), fast_hash("bar.baz.com"), fast_hash("foo.bar.baz.com")]);
+        assert_eq!(get_hashes_from_labels("foo.bar.baz.com", 11, 11), vec![fast_hash("baz"), fast_hash("bar.baz"), fast_hash("foo.bar.baz")]);
+        assert_eq!(get_hashes_from_labels("foo.bar.baz.com", 11, 8), vec![fast_hash("baz"), fast_hash("bar.baz"), fast_hash("foo.bar.baz")]);
+    }
+
+    #[test]
+    fn without_public_suffix() {
+        assert_eq!(get_hostname_without_public_suffix("", ""), None);
+        assert_eq!(get_hostname_without_public_suffix("com", ""), None);
+        assert_eq!(get_hostname_without_public_suffix("com", "com"), None);
+        assert_eq!(get_hostname_without_public_suffix("foo.com", "foo.com"), Some("foo"));
+        assert_eq!(get_hostname_without_public_suffix("foo.bar.com", "bar.com"), Some("foo.bar"));
+    }
+}
