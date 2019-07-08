@@ -133,7 +133,7 @@ impl CosmeticFilter {
     /// On success, updates the contents of `selector` and `style` according to the rule.
     ///
     /// This should only be called if the rule part after the separator has been confirmed not to
-    /// be a script injection rule, either with `+js` or `:script`.
+    /// be a script injection rule using `+js()`.
     #[inline]
     fn parse_after_sharp_nonscript<'a>(
         line: &'a str,
@@ -201,18 +201,7 @@ impl CosmeticFilter {
 
             let mut selector = &line[suffix_start_index..];
             let mut style = None;
-            if line.len() - suffix_start_index > 7 && line[suffix_start_index..].starts_with("script:") {
-                let script_method_index = suffix_start_index + 7;
-                let mut script_selector_index_start = script_method_index;
-                let script_selector_index_end = line.len() - 1;
-
-                if line[script_method_index..].starts_with("inject(") {
-                    mask |= CosmeticFilterMask::SCRIPT_INJECT;
-                    script_selector_index_start += 7;
-                }
-
-                selector = &line[script_selector_index_start..script_selector_index_end];
-            } else if line.len() - suffix_start_index > 4 && line[suffix_start_index..].starts_with("+js(") {
+            if line.len() - suffix_start_index > 4 && line[suffix_start_index..].starts_with("+js(") {
                 mask |= CosmeticFilterMask::SCRIPT_INJECT;
                 selector = &line[suffix_start_index + 4..line.len() - 1];
             } else {
