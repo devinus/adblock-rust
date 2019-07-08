@@ -251,6 +251,8 @@ impl CosmeticFilter {
         }
     }
 
+    /// Any cosmetic filter rule that specifies (possibly negated) hostnames or entities has a
+    /// hostname constraint.
     fn has_hostname_constraint(&self) -> bool {
         self.hostnames.is_some() ||
             self.entities.is_some() ||
@@ -258,6 +260,11 @@ impl CosmeticFilter {
             self.not_hostnames.is_some()
     }
 
+    /// Check whether this rule applies to content from the given hostname and domain.
+    ///
+    /// `hostname` and `domain` should be specified as, e.g. "subdomain.domain.com" and
+    /// "domain.com", respectively. This function will panic if the specified `domain` is shorter
+    /// than the specified `hostname`.
     pub fn matches(&self, hostname: &str, domain: &str) -> bool {
         let has_hostname_constraint = self.has_hostname_constraint();
         if !has_hostname_constraint {
@@ -311,9 +318,8 @@ impl CosmeticFilter {
     }
 }
 
-/// ('com', 'com') -> None
-/// ('foo.com', 'foo.com') -> 'foo'
-/// ('foo.bar.com', 'bar.com') -> 'foo.bar'
+/// Returns a slice of `hostname` up to and including the segment that overlaps with the first
+/// segment of `domain`. This has the effect of stripping ".com", ".co.uk", etc.
 fn get_hostname_without_public_suffix<'a>(hostname: &'a str, domain: &str) -> Option<&'a str> {
     let mut hostname_without_public_suffix = None;
 
@@ -327,10 +333,11 @@ fn get_hostname_without_public_suffix<'a>(hostname: &'a str, domain: &str) -> Op
     hostname_without_public_suffix
 }
 
-/// ('foo.bar.baz', 11, 11) -> ['baz', 'bar.baz', 'foo.bar.baz'].map(hash_hostname)
-/// ('foo.bar.baz.com', 15, 8) -> ['baz.com', 'bar.baz.com', 'foo.bar.baz.com'].map(hash_hostname)
-/// ('foo.bar.baz.com', 11, 11) -> ['baz', 'bar.baz', 'foo.bar.baz'].map(hash_hostname)
-/// ('foo.bar.baz.com', 11, 8) -> ['baz', 'bar.baz', 'foo.bar.baz'].map(hash_hostname)
+/// Given a hostname and the indices of an end position and the start of the domain, returns a
+/// `Vec` of hashes of all subdomains the hostname falls under, ordered from least to most
+/// specific.
+///
+/// Check the `label_hashing` tests for examples.
 fn get_hashes_from_labels(hostname: &str, end: usize, start_of_domain: usize) -> Vec<Hash> {
     let mut hashes = vec![];
     let mut dot_ptr = start_of_domain;
@@ -345,6 +352,8 @@ fn get_hashes_from_labels(hostname: &str, end: usize, start_of_domain: usize) ->
     hashes
 }
 
+/// Returns a `Vec` of the hashes of all segments of `hostname` that may match an
+/// entity-constrained rule.
 fn get_entity_hashes_from_labels(hostname: &str, domain: &str) -> Vec<Hash> {
     let hostname_without_public_suffix = get_hostname_without_public_suffix(hostname, domain);
     if let Some(hostname_without_public_suffix) = hostname_without_public_suffix {
@@ -358,6 +367,8 @@ fn get_entity_hashes_from_labels(hostname: &str, domain: &str) -> Vec<Hash> {
     }
 }
 
+/// Returns a `Vec` of the hashes of all segments of `hostname` that may match a
+/// hostname-constrained rule.
 fn get_hostname_hashes_from_labels(hostname: &str, domain: &str) -> Vec<Hash> {
     get_hashes_from_labels(hostname, hostname.len(), hostname.len() - domain.len())
 }
