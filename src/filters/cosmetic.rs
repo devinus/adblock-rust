@@ -1,3 +1,5 @@
+//! Tools for blocking at a page-content level, including CSS selector-based filtering and content
+//! script injection.
 use serde::{Deserialize, Serialize};
 use crate::utils::Hash;
 
@@ -14,6 +16,7 @@ pub enum CosmeticFilterError {
 }
 
 bitflags! {
+    /// Boolean flags for cosmetic filter rules.
     #[derive(Serialize, Deserialize)]
     pub struct CosmeticFilterMask: u8 {
         const UNHIDE = 1 << 0;
@@ -28,6 +31,7 @@ bitflags! {
     }
 }
 
+/// Struct representing a parsed cosmetic filter rule.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CosmeticFilter {
     pub entities: Option<Vec<Hash>>,
@@ -41,6 +45,8 @@ pub struct CosmeticFilter {
 }
 
 impl CosmeticFilter {
+    /// Parse the rule in `line` into a `CosmeticFilter`. If `debug` is true, the original rule
+    /// will be reported in the resulting `CosmeticFilter` struct as well.
     pub fn parse(line: &str, debug: bool) -> Result<CosmeticFilter, CosmeticFilterError> {
         let mut mask = CosmeticFilterMask::NONE;
         if let Some(sharp_index) = line.find('#') {
@@ -218,6 +224,7 @@ impl CosmeticFilter {
 }
 
 mod css_validation {
+    //! Methods for validating CSS selectors and style rules extracted from cosmetic filter rules.
     use cssparser::ParserInput;
     use cssparser::Parser;
     use selectors::parser::Selector;
@@ -244,6 +251,10 @@ mod css_validation {
         type Error = selectors::parser::SelectorParseErrorKind<'i>;
     }
 
+    /// The `selectors` library requires an object that implements `SelectorImpl` to store data
+    /// about a parsed selector. For performance, the actual content of parsed selectors is
+    /// discarded as much as possible - it only matters whether the returned `Result` is `Ok` or
+    /// `Err`.
     #[derive(Debug, Clone)]
     struct SelectorImpl;
 
@@ -261,6 +272,8 @@ mod css_validation {
         type PseudoElement = PseudoElement;
     }
 
+    /// For performance, individual fields of parsed selectors is discarded. Instead, they are
+    /// parsed into a `DummyValue` with no fields.
     #[derive(Debug, Clone, PartialEq, Eq, Default)]
     struct DummyValue;
 
@@ -272,6 +285,7 @@ mod css_validation {
         fn from(_: &'a str) -> Self { DummyValue }
     }
 
+    /// Dummy struct for Non-tree-structural pseudo-classes.
     #[derive(Clone, PartialEq, Eq)]
     struct NonTSPseudoClass;
 
@@ -284,6 +298,7 @@ mod css_validation {
         fn to_css<W: Write>(&self, _: &mut W) -> FmtResult { Ok(()) }
     }
 
+    /// Dummy struct for pseudo-elements.
     #[derive(Clone, PartialEq, Eq)]
     struct PseudoElement;
 
@@ -311,6 +326,12 @@ mod css_validation {
     }
 }
 
+/// A selector is a simple selector if it is an id or class selector, optionally followed by a
+/// square-bracketed attribute selector or another ` >`, ` +`, ` .`, or `  #` rule. In each of
+/// these cases, the rule would be indexed by the first class or id specified.
+///
+/// This should only be called after verifying that the first character of the selector is a `#` or
+/// a `.`.
 fn is_simple_selector(selector: &str) -> bool {
     for (i, c) in selector.chars().enumerate().skip(1) {
         if !(c == '-'
@@ -339,6 +360,11 @@ fn is_simple_selector(selector: &str) -> bool {
     true
 }
 
+/// A selector is a simple href selector if it is either an `a` element or no element with an
+/// attribute selector of the form `href^=`, `href*=`, or `href=`.
+///
+/// This should only be called after verifying that the selector starts with either `a[` or `[`,
+/// and `start` should be set to either 2 or 1, respectively.
 fn is_simple_href_selector(selector: &str, start: usize) -> bool {
     selector[start..].starts_with("href^=\"")
         || selector[start..].starts_with("href*=\"")
@@ -349,6 +375,7 @@ fn is_simple_href_selector(selector: &str, start: usize) -> bool {
 mod parse_tests {
     use super::*;
 
+    /// An easily modified summary of a `CosmeticFilter` rule to be used in tests.
     #[derive(Debug, PartialEq)]
     struct CosmeticFilterBreakdown {
         entities: Option<Vec<Hash>>,
@@ -406,6 +433,8 @@ mod parse_tests {
         }
     }
 
+    /// Asserts that `rule` parses into a `CosmeticFilter` equivalent to the summary provided by
+    /// `expected`.
     fn check_parse_result(rule: &str, expected: CosmeticFilterBreakdown) {
         let filter: CosmeticFilterBreakdown = (&CosmeticFilter::parse(rule, false).unwrap()).into();
         assert_eq!(expected, filter);
