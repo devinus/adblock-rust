@@ -274,39 +274,39 @@ impl CosmeticFilter {
             return false;
         }
 
-        let entity_hashes = if self.entities.is_some() || self.not_entities.is_some() {
+        let request_entities = if self.entities.is_some() || self.not_entities.is_some() {
             get_entity_hashes_from_labels(hostname, domain)
         } else {
             vec![]
         };
 
-        let hostname_hashes = if self.hostnames.is_some() || self.not_hostnames.is_some() {
+        let request_hostnames = if self.hostnames.is_some() || self.not_hostnames.is_some() {
             get_hostname_hashes_from_labels(hostname, domain)
         } else {
             vec![]
         };
 
-        if let Some(ref not_hostnames) = self.not_hostnames {
-            if hostname_hashes.iter().any(|hash| bin_lookup(not_hostnames, *hash)) {
+        if let Some(ref filter_not_hostnames) = self.not_hostnames {
+            if request_hostnames.iter().any(|hash| bin_lookup(filter_not_hostnames, *hash)) {
                 return false;
             }
         }
 
-        if let Some(ref not_entities) = self.not_entities {
-            if entity_hashes.iter().any(|hash| bin_lookup(not_entities, *hash)) {
+        if let Some(ref filter_not_entities) = self.not_entities {
+            if request_entities.iter().any(|hash| bin_lookup(filter_not_entities, *hash)) {
                 return false;
             }
         }
 
         if self.hostnames.is_some() || self.entities.is_some() {
-            if let Some(ref hostnames) = self.hostnames {
-                if hostname_hashes.iter().any(|hash| bin_lookup(hostnames, *hash)) {
+            if let Some(ref filter_hostnames) = self.hostnames {
+                if request_hostnames.iter().any(|hash| bin_lookup(filter_hostnames, *hash)) {
                     return true;
                 }
             }
 
-            if let Some(ref entities) = self.entities {
-                if entity_hashes.iter().any(|hash| bin_lookup(entities, *hash)) {
+            if let Some(ref filter_entities) = self.entities {
+                if request_entities.iter().any(|hash| bin_lookup(filter_entities, *hash)) {
                     return true;
                 }
             }
