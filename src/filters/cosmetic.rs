@@ -1159,17 +1159,9 @@ mod matching_tests {
         /// "domain.com", respectively, to . This function will panic if the specified `domain` is
         /// shorter than the specified `hostname`.
         fn matches_str(&self, hostname: &str, domain: &str) -> bool {
-            let request_entities = if self.entities.is_some() || self.not_entities.is_some() {
-                get_entity_hashes_from_labels(hostname, domain)
-            } else {
-                vec![]
-            };
+            let request_entities = get_entity_hashes_from_labels(hostname, domain);
 
-            let request_hostnames = if self.hostnames.is_some() || self.not_hostnames.is_some() {
-                get_hostname_hashes_from_labels(hostname, domain)
-            } else {
-                vec![]
-            };
+            let request_hostnames = get_hostname_hashes_from_labels(hostname, domain);
 
             self.matches(&request_entities[..], &request_hostnames[..])
         }
