@@ -13,6 +13,8 @@ pub enum CosmeticFilterError {
     MissingSharp,
     InvalidCssStyle,
     InvalidCssSelector,
+    GenericUnhide,
+    GenericScriptInject,
 }
 
 bitflags! {
@@ -179,6 +181,9 @@ impl CosmeticFilter {
             let mut suffix_start_index = after_sharp_index + 1;
 
             if line[after_sharp_index..].starts_with("@") {
+                if sharp_index == 0 {
+                    return Err(CosmeticFilterError::GenericUnhide);
+                }
                 mask |= CosmeticFilterMask::UNHIDE;
                 suffix_start_index += 1;
             }
@@ -202,6 +207,9 @@ impl CosmeticFilter {
             let mut selector = &line[suffix_start_index..];
             let mut style = None;
             if line.len() - suffix_start_index > 4 && line[suffix_start_index..].starts_with("+js(") {
+                if sharp_index == 0 {
+                    return Err(CosmeticFilterError::GenericScriptInject);
+                }
                 mask |= CosmeticFilterMask::SCRIPT_INJECT;
                 selector = &line[suffix_start_index + 4..line.len() - 1];
             } else {
