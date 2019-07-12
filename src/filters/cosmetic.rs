@@ -26,7 +26,6 @@ bitflags! {
         const IS_UNICODE = 1 << 2;
         const IS_CLASS_SELECTOR = 1 << 3;
         const IS_ID_SELECTOR = 1 << 4;
-        const IS_HREF_SELECTOR = 1 << 5;
 
         // Careful with checking for NONE - will always match
         const NONE = 0;
@@ -233,10 +232,6 @@ impl CosmeticFilter {
                     mask |= CosmeticFilterMask::IS_CLASS_SELECTOR;
                 } else if selector.starts_with('#') && is_simple_selector(selector) {
                     mask |= CosmeticFilterMask::IS_ID_SELECTOR;
-                } else if selector.starts_with("a[h") && is_simple_href_selector(selector, 2) {
-                    mask |= CosmeticFilterMask::IS_HREF_SELECTOR;
-                } else if selector.starts_with("[h") && is_simple_href_selector(selector, 1) {
-                    mask |= CosmeticFilterMask::IS_HREF_SELECTOR;
                 }
             }
 
@@ -509,17 +504,6 @@ fn is_simple_selector(selector: &str) -> bool {
     true
 }
 
-/// A selector is a simple href selector if it is either an `a` element or no element with an
-/// attribute selector of the form `href^=`, `href*=`, or `href=`.
-///
-/// This should only be called after verifying that the selector starts with either `a[` or `[`,
-/// and `start` should be set to either 2 or 1, respectively.
-fn is_simple_href_selector(selector: &str, start: usize) -> bool {
-    selector[start..].starts_with("href^=\"")
-        || selector[start..].starts_with("href*=\"")
-        || selector[start..].starts_with("href=\"")
-}
-
 #[cfg(test)]
 mod parse_tests {
     use super::*;
@@ -539,7 +523,6 @@ mod parse_tests {
         is_unicode: bool,
         is_class_selector: bool,
         is_id_selector: bool,
-        is_href_selector: bool,
     }
 
     impl From<&CosmeticFilter> for CosmeticFilterBreakdown {
@@ -557,7 +540,6 @@ mod parse_tests {
                 is_unicode: filter.mask.contains(CosmeticFilterMask::IS_UNICODE),
                 is_class_selector: filter.mask.contains(CosmeticFilterMask::IS_CLASS_SELECTOR),
                 is_id_selector: filter.mask.contains(CosmeticFilterMask::IS_ID_SELECTOR),
-                is_href_selector: filter.mask.contains(CosmeticFilterMask::IS_HREF_SELECTOR),
             }
         }
     }
@@ -577,7 +559,6 @@ mod parse_tests {
                 is_unicode: false,
                 is_class_selector: false,
                 is_id_selector: false,
-                is_href_selector: false,
             }
         }
     }
@@ -618,7 +599,6 @@ mod parse_tests {
             "##a[href=\"foo.com\"]",
             CosmeticFilterBreakdown {
                 selector: "a[href=\"foo.com\"]".to_string(),
-                is_href_selector: true,
                 ..Default::default()
             }
         );
@@ -626,7 +606,6 @@ mod parse_tests {
             "##[href=\"foo.com\"]",
             CosmeticFilterBreakdown {
                 selector: "[href=\"foo.com\"]".to_string(),
-                is_href_selector: true,
                 ..Default::default()
             }
         );
@@ -664,7 +643,6 @@ mod parse_tests {
             r#"soundtrackcollector.com,the-numbers.com##a[href^="http://affiliates.allposters.com/"]"#,
             CosmeticFilterBreakdown {
                 selector: r#"a[href^="http://affiliates.allposters.com/"]"#.to_string(),
-                is_href_selector: true,
                 hostnames: sort_hash_domains(vec!["soundtrackcollector.com", "the-numbers.com"]),
                 ..Default::default()
             }
@@ -855,7 +833,6 @@ mod parse_tests {
             r#"##a[href*=".adk2x.com/"]"#,
             CosmeticFilterBreakdown {
                 selector: r#"a[href*=".adk2x.com/"]"#.to_string(),
-                is_href_selector: true,
                 ..Default::default()
             }
         );
@@ -863,7 +840,6 @@ mod parse_tests {
             r#"##a[href^="//40ceexln7929.com/"]"#,
             CosmeticFilterBreakdown {
                 selector: r#"a[href^="//40ceexln7929.com/"]"#.to_string(),
-                is_href_selector: true,
                 ..Default::default()
             }
         );
@@ -871,7 +847,6 @@ mod parse_tests {
             r#"##a[href*=".trust.zone"]"#,
             CosmeticFilterBreakdown {
                 selector: r#"a[href*=".trust.zone"]"#.to_string(),
-                is_href_selector: true,
                 ..Default::default()
             }
         );
@@ -880,7 +855,6 @@ mod parse_tests {
             CosmeticFilterBreakdown {
                 selector: r#"a[href="http://forums.tf2maps.net/payments.php"]"#.to_string(),
                 hostnames: sort_hash_domains(vec!["tf2maps.net"]),
-                is_href_selector: true,
                 ..Default::default()
             }
         );
