@@ -492,24 +492,57 @@ mod css_validation {
 
 lazy_static! {
     static ref RE_PLAIN_SELECTOR: Regex = Regex::new(r"^[#.][\w\\-]+").unwrap();
-    static ref RE_PLAIN_SELECTOR_ESCAPED: Regex = Regex::new(r"^[#.][\w\\-]+").unwrap();
+    static ref RE_PLAIN_SELECTOR_ESCAPED: Regex = Regex::new(r"^[#.](?:\\[0-9A-Fa-f]+ |\\.|\w|-)+").unwrap();
     static ref RE_ESCAPE_SEQUENCE: Regex = Regex::new(r"\\([0-9A-Fa-f]+ |.)").unwrap();
 }
 
 /// Returns the first token of a CSS selector.
-fn key_from_selector(selector: &str) -> Result<&str, CosmeticFilterError> {
+///
+/// This should only be called once `selector` has been verified to start with either a "#" or "."
+/// character.
+fn key_from_selector(selector: &str) -> Result<String, CosmeticFilterError> {
+    // If there are no escape characters in the selector, just take the first class or id token.
     let mat = RE_PLAIN_SELECTOR.find(selector);
     if let Some(location) = mat {
-        let key = &selector[location.start()..location.end()];
+        let key = &location.as_str();
         if key.find("\\").is_none() {
-            return Ok(key);
+            return Ok((*key).into());
         }
     } else {
         return Err(CosmeticFilterError::InvalidCssSelector);
     }
 
-    //TODO support escaped CSS
-    return Err(CosmeticFilterError::InvalidCssSelector);
+    // Otherwise, the characters in the selector must be escaped.
+    let mat = RE_PLAIN_SELECTOR_ESCAPED.find(selector);
+    if let Some(location) = mat {
+        let mut key = String::with_capacity(selector.len());
+        let escaped = &location.as_str();
+        let mut beginning = 0;
+        let mat = RE_ESCAPE_SEQUENCE.captures_iter(escaped);
+        for capture in mat {
+            // Unwrap is safe because the 0th capture group is the match itself
+            let location = capture.get(0).unwrap();
+            key += &escaped[beginning..location.start()];
+            beginning = location.end();
+            // Unwrap is safe because there is a capture group specified in the regex
+            let capture = capture.get(1).unwrap().as_str();
+            if capture.len() == 1 {
+                key += capture;
+            } else {
+                // This u32 conversion can overflow
+                let codepoint = u32::from_str_radix(&capture[..capture.len() - 1], 16)
+                    .map_err(|_| CosmeticFilterError::InvalidCssSelector)?;
+
+                // Not all u32s are valid Unicode codepoints
+                key += &core::char::from_u32(codepoint)
+                    .ok_or_else(|| CosmeticFilterError::InvalidCssSelector)?
+                    .to_string();
+            }
+        }
+        Ok(String::from(key) + &escaped[beginning..])
+    } else {
+        Err(CosmeticFilterError::InvalidCssSelector)
+    }
 }
 
 #[cfg(test)]
@@ -545,6 +578,12 @@ mod key_from_selector_tests {
         assert_eq!(key_from_selector(r#"#\33 00X250ad"#).unwrap(), "#300X250ad");
         assert_eq!(key_from_selector(r#"#\5f _fixme"#).unwrap(), "#__fixme");
         assert_eq!(key_from_selector(r#"#\37 28ad"#).unwrap(), "#728ad");
+    }
+
+    #[test]
+    fn bad_escapes() {
+        assert!(key_from_selector(r#"#\5ffffffffff overflows"#).is_err());
+        assert!(key_from_selector(r#"#\5fffffff is_too_large"#).is_err());
     }
 }
 
