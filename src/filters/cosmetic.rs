@@ -599,6 +599,7 @@ mod parse_tests {
         not_entities: Option<Vec<Hash>>,
         not_hostnames: Option<Vec<Hash>>,
         selector: String,
+        key: Option<String>,
         style: Option<String>,
 
         unhide: bool,
@@ -616,6 +617,7 @@ mod parse_tests {
                 not_entities: filter.not_entities.as_ref().cloned(),
                 not_hostnames: filter.not_hostnames.as_ref().cloned(),
                 selector: filter.selector.clone(),
+                key: filter.key.as_ref().cloned(),
                 style: filter.style.as_ref().cloned(),
 
                 unhide: filter.mask.contains(CosmeticFilterMask::UNHIDE),
@@ -635,6 +637,7 @@ mod parse_tests {
                 not_entities: None,
                 not_hostnames: None,
                 selector: "".to_string(),
+                key: None,
                 style: None,
 
                 unhide: false,
@@ -667,6 +670,7 @@ mod parse_tests {
             CosmeticFilterBreakdown {
                 selector: "#selector".to_string(),
                 is_id_selector: true,
+                key: Some("selector".to_string()),
                 ..Default::default()
             }
         );
@@ -675,6 +679,7 @@ mod parse_tests {
             CosmeticFilterBreakdown {
                 selector: ".selector".to_string(),
                 is_class_selector: true,
+                key: Some("selector".to_string()),
                 ..Default::default()
             }
         );
@@ -1090,6 +1095,7 @@ mod parse_tests {
                 entities: sort_hash_domains(vec!["downloadsource"]),
                 style: Some("display: block !important;".into()),
                 is_class_selector: true,
+                key: Some("date".to_string()),
                 ..Default::default()
             }
         );
@@ -1104,6 +1110,7 @@ mod parse_tests {
                 hostnames: sort_hash_domains(vec!["chip.de"]),
                 style: Some("display:block!important;padding-top:0!important;".into()),
                 is_class_selector: true,
+                key: Some("video-wrapper".to_string()),
                 ..Default::default()
             }
         );
@@ -1114,6 +1121,7 @@ mod parse_tests {
                 hostnames: sort_hash_domains(vec!["allmusic.com"]),
                 style: Some("min-height: 1px !important;".into()),
                 is_class_selector: true,
+                key: Some("advertising".to_string()),
                 ..Default::default()
             }
         );
@@ -1124,6 +1132,7 @@ mod parse_tests {
                 hostnames: sort_hash_domains(vec!["quora.com"]),
                 style: Some("filter: none !important;".into()),
                 is_class_selector: true,
+                key: Some("signup_wall_prevent_scroll".to_string()),
                 ..Default::default()
             }
         );
@@ -1143,6 +1152,7 @@ mod parse_tests {
                 hostnames: sort_hash_domains(vec!["streamcloud.eu"]),
                 style: Some("display: block !important".into()),
                 is_id_selector: true,
+                key: Some("login".to_string()),
                 ..Default::default()
             }
         );
@@ -1165,6 +1175,7 @@ mod parse_tests {
                 selector: "#неделя".to_string(),
                 is_unicode: true,
                 is_id_selector: true,
+                key: Some("неделя".to_string()),
                 ..Default::default()
             }
         );
@@ -1175,6 +1186,7 @@ mod parse_tests {
                 hostnames: sort_hash_domains(vec!["xn--lloworl-5ggb3f.com"]),
                 is_unicode: true,
                 is_id_selector: true,
+                key: Some("week".to_string()),
                 unhide: true,
                 ..Default::default()
             }
