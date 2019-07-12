@@ -513,6 +513,42 @@ fn key_from_selector(selector: &str) -> Result<&str, CosmeticFilterError> {
 }
 
 #[cfg(test)]
+mod key_from_selector_tests {
+    use super::key_from_selector;
+
+    #[test]
+    fn no_escapes() {
+        assert_eq!(key_from_selector(r#"#selector"#).unwrap(), "#selector");
+        assert_eq!(key_from_selector(r#"#ad-box[href="https://popads.net"]"#).unwrap(), "#ad-box");
+        assert_eq!(key_from_selector(r#".p"#).unwrap(), ".p");
+        assert_eq!(key_from_selector(r#".ad #ad.adblockblock"#).unwrap(), ".ad");
+        assert_eq!(key_from_selector(r#"#container.contained"#).unwrap(), "#container");
+    }
+
+    #[test]
+    fn escaped_characters() {
+        assert_eq!(key_from_selector(r"#Meebo\:AdElement\.Root").unwrap(), "#Meebo:AdElement.Root");
+        assert_eq!(key_from_selector(r"#\ Banner\ Ad\ -\ 590\ x\ 90").unwrap(), "# Banner Ad - 590 x 90");
+        assert_eq!(key_from_selector(r"#\ rek").unwrap(), "# rek");
+        assert_eq!(key_from_selector(r#"#\:rr .nH[role="main"] .mq:first-child"#).unwrap(), "#:rr");
+        assert_eq!(key_from_selector(r#"#adspot-300x600\,300x250-pos-1"#).unwrap(), "#adspot-300x600,300x250-pos-1");
+        assert_eq!(key_from_selector(r#"#adv_\'146\'"#).unwrap(), "#adv_\'146\'");
+        assert_eq!(key_from_selector(r#"#oas-mpu-left\<\/div\>"#).unwrap(), "#oas-mpu-left</div>");
+        assert_eq!(key_from_selector(r#".Trsp\(op\).Trsdu\(3s\)"#).unwrap(), ".Trsp(op)");
+    }
+
+    #[test]
+    fn escape_codes() {
+        assert_eq!(key_from_selector(r#"#\5f _mom_ad_12"#).unwrap(), "#__mom_ad_12");
+        assert_eq!(key_from_selector(r#"#\5f _nq__hh[style="display:block!important"]"#).unwrap(), "#__nq__hh");
+        assert_eq!(key_from_selector(r#"#\31 000-014-ros"#).unwrap(), "#1000-014-ros");
+        assert_eq!(key_from_selector(r#"#\33 00X250ad"#).unwrap(), "#300X250ad");
+        assert_eq!(key_from_selector(r#"#\5f _fixme"#).unwrap(), "#__fixme");
+        assert_eq!(key_from_selector(r#"#\37 28ad"#).unwrap(), "#728ad");
+    }
+}
+
+#[cfg(test)]
 mod parse_tests {
     use super::*;
 
