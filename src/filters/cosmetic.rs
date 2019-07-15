@@ -403,7 +403,13 @@ mod css_validation {
         r.is_ok()
     }
 
-    pub fn is_valid_css_style(_style: &str) -> bool {
+    pub fn is_valid_css_style(style: &str) -> bool {
+        if style.contains('\\') {
+            return false;
+        }
+        if style.contains("url(") {
+            return false;
+        }
         // TODO
         true
     }
