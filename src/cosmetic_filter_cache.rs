@@ -115,6 +115,68 @@ impl CosmeticFilterCache {
         }
     }
 
+    pub fn class_id_stylesheet(&self, classes: &[String], ids: &[String]) -> Option<String> {
+        let mut simple_classes = vec![];
+        let mut simple_ids = vec![];
+        let mut complex_selectors = vec![];
+
+        classes.iter().for_each(|class| {
+            if !self.simple_class_rules.contains(class) {
+                return;
+            }
+            if let Some(bucket) = self.complex_class_rules.get(class) {
+                complex_selectors.extend_from_slice(&bucket[..]);
+            } else {
+                simple_classes.push(class);
+            }
+        });
+        ids.iter().for_each(|id| {
+            if !self.simple_id_rules.contains(id) {
+                return;
+            }
+            if let Some(bucket) = self.complex_id_rules.get(id) {
+                complex_selectors.extend_from_slice(&bucket[..]);
+            } else {
+                simple_ids.push(id);
+            }
+        });
+
+        if simple_classes.is_empty() && simple_ids.is_empty() && complex_selectors.is_empty() {
+            return None;
+        }
+
+        let mut stylesheet = String::with_capacity(100 * (simple_classes.len() + simple_ids.len() + complex_selectors.len()));
+        let mut first = true;
+        for class in simple_classes {
+            if !first {
+                stylesheet += ",";
+            } else {
+                first = false;
+            }
+            stylesheet += ".";
+            stylesheet += class;
+        }
+        for id in simple_ids {
+            if !first {
+                stylesheet += ",";
+            } else {
+                first = false;
+            }
+            stylesheet += "#";
+            stylesheet += id;
+        }
+        for selector in complex_selectors {
+            if !first {
+                stylesheet += ",";
+            } else {
+                first = false;
+            }
+            stylesheet += &selector;
+        }
+        stylesheet += "{display:none !important;}";
+        Some(stylesheet)
+    }
+
     pub fn hostname_stylesheet(&self, hostname: &str, domain: &str) -> String {
         let (request_entities, request_hostnames) = hostname_domain_hashes(hostname, domain);
 
