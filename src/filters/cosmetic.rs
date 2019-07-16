@@ -19,6 +19,7 @@ pub enum CosmeticFilterError {
     GenericUnhide,
     GenericScriptInject,
     GenericStyle,
+    DoubleNegation,
 }
 
 bitflags! {
@@ -229,6 +230,10 @@ impl CosmeticFilter {
                 } else if sharp_index == 0 {
                     return Err(CosmeticFilterError::GenericStyle);
                 }
+            }
+
+            if (not_entities.is_some() || not_hostnames.is_some()) && mask.contains(CosmeticFilterMask::UNHIDE) {
+                return Err(CosmeticFilterError::DoubleNegation);
             }
 
             if !selector.is_ascii() {
