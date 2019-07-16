@@ -276,7 +276,7 @@ impl CosmeticFilter {
 
     /// Any cosmetic filter rule that specifies (possibly negated) hostnames or entities has a
     /// hostname constraint.
-    fn has_hostname_constraint(&self) -> bool {
+    pub fn has_hostname_constraint(&self) -> bool {
         self.hostnames.is_some() ||
             self.entities.is_some() ||
             self.not_entities.is_some() ||
@@ -368,7 +368,7 @@ fn get_hashes_from_labels(hostname: &str, end: usize, start_of_domain: usize) ->
 
 /// Returns a `Vec` of the hashes of all segments of `hostname` that may match an
 /// entity-constrained rule.
-fn get_entity_hashes_from_labels(hostname: &str, domain: &str) -> Vec<Hash> {
+pub fn get_entity_hashes_from_labels(hostname: &str, domain: &str) -> Vec<Hash> {
     let hostname_without_public_suffix = get_hostname_without_public_suffix(hostname, domain);
     if let Some(hostname_without_public_suffix) = hostname_without_public_suffix {
         get_hashes_from_labels(
@@ -383,7 +383,7 @@ fn get_entity_hashes_from_labels(hostname: &str, domain: &str) -> Vec<Hash> {
 
 /// Returns a `Vec` of the hashes of all segments of `hostname` that may match a
 /// hostname-constrained rule.
-fn get_hostname_hashes_from_labels(hostname: &str, domain: &str) -> Vec<Hash> {
+pub fn get_hostname_hashes_from_labels(hostname: &str, domain: &str) -> Vec<Hash> {
     get_hashes_from_labels(hostname, hostname.len(), hostname.len() - domain.len())
 }
 
