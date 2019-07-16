@@ -18,6 +18,7 @@ pub enum CosmeticFilterError {
     InvalidCssSelector,
     GenericUnhide,
     GenericScriptInject,
+    GenericStyle,
 }
 
 bitflags! {
@@ -225,6 +226,8 @@ impl CosmeticFilter {
             } else if let Some(ref style) = style {
                 if !is_valid_css_style(style) {
                     return Err(CosmeticFilterError::InvalidCssStyle);
+                } else if sharp_index == 0 {
+                    return Err(CosmeticFilterError::GenericStyle);
                 }
             }
 
