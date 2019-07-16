@@ -22,7 +22,7 @@ fn rules_to_stylesheet(rules: Vec<CosmeticFilter>) -> String {
                     stylesheet += &rule.selector;
                 }
             });
-        stylesheet += "{display: none !important}\n";
+        stylesheet += "{display:none !important;}\n";
 
         styled_rules.iter()
             .for_each(|rule| {
@@ -39,8 +39,8 @@ fn rules_to_stylesheet(rules: Vec<CosmeticFilter>) -> String {
 pub struct CosmeticFilterCache {
     simple_class_rules: HashSet<String>,
     simple_id_rules: HashSet<String>,
-    complex_class_rules: HashMap<String, Vec<CosmeticFilter>>,
-    complex_id_rules: HashMap<String, Vec<CosmeticFilter>>,
+    complex_class_rules: HashMap<String, Vec<String>>,
+    complex_id_rules: HashMap<String, Vec<String>>,
 
     specific_rules: Vec<CosmeticFilter>,
 
@@ -51,8 +51,8 @@ impl CosmeticFilterCache {
     pub fn new(rules: Vec<CosmeticFilter>) -> Self {
         let mut simple_class_rules = HashSet::with_capacity(rules.len() / 2);
         let mut simple_id_rules = HashSet::with_capacity(rules.len() / 2);
-        let mut complex_class_rules: HashMap<String, Vec<CosmeticFilter>> = HashMap::with_capacity(rules.len() / 2);
-        let mut complex_id_rules: HashMap<String, Vec<CosmeticFilter>> = HashMap::with_capacity(rules.len() / 2);
+        let mut complex_class_rules: HashMap<String, Vec<String>> = HashMap::with_capacity(rules.len() / 2);
+        let mut complex_id_rules: HashMap<String, Vec<String>> = HashMap::with_capacity(rules.len() / 2);
 
         let mut specific_rules = Vec::with_capacity(rules.len() / 2);
 
@@ -76,9 +76,9 @@ impl CosmeticFilterCache {
                             simple_class_rules.insert(key);
                         } else {
                             if let Some(bucket) = complex_class_rules.get_mut(&key) {
-                                bucket.push(rule.clone());
+                                bucket.push(rule.selector);
                             } else {
-                                complex_class_rules.insert(key, vec![rule.clone()]);
+                                complex_class_rules.insert(key, vec![rule.selector]);
                             }
                         }
                     }
@@ -89,9 +89,9 @@ impl CosmeticFilterCache {
                             simple_id_rules.insert(key);
                         } else {
                             if let Some(bucket) = complex_id_rules.get_mut(&key) {
-                                bucket.push(rule);
+                                bucket.push(rule.selector);
                             } else {
-                                complex_id_rules.insert(key, vec![rule]);
+                                complex_id_rules.insert(key, vec![rule.selector]);
                             }
                         }
                     }
