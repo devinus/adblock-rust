@@ -18,7 +18,6 @@ use crate::utils;
 pub struct BlockerOptions {
     pub debug: bool,
     pub enable_optimizations: bool,
-    pub load_cosmetic_filters: bool,
     pub load_network_filters: bool,
 }
 
@@ -87,22 +86,22 @@ pub struct Blocker {
     
     // Do not serialize enabled tags - when deserializing, tags of the existing
     // instance (the one we are recreating lists into) are maintained
-    #[serde(skip_serializing, skip_deserializing)]
+    #[serde(skip)]
     tags_enabled: HashSet<String>,
     tagged_filters_all: Vec<NetworkFilter>,
 
-    #[serde(skip_serializing, skip_deserializing)]
+    #[serde(skip)]
     hot_filters: NetworkFilterList,
 
     debug: bool,
     enable_optimizations: bool,
-    load_cosmetic_filters: bool,
+    _unused: bool,      // This field exists for backwards compatibility only.
     load_network_filters: bool,
 
     #[serde(default)]
     resources: Resources,
     #[cfg(feature = "object-pooling")]
-    #[serde(skip_serializing, skip_deserializing)]
+    #[serde(skip)]
     pool: TokenPool,
 }
 
@@ -294,7 +293,7 @@ impl Blocker {
             // Options
             debug: options.debug,
             enable_optimizations: options.enable_optimizations,
-            load_cosmetic_filters: options.load_cosmetic_filters,
+            _unused: false,
             load_network_filters: options.load_network_filters,
 
             resources: Resources::default(),
@@ -1025,7 +1024,6 @@ mod blocker_tests {
         let blocker_options: BlockerOptions = BlockerOptions {
             debug: false,
             enable_optimizations: false,    // optimizations will reduce number of rules
-            load_cosmetic_filters: false,   
             load_network_filters: true
         };
 
@@ -1124,7 +1122,6 @@ mod blocker_tests {
         let blocker_options: BlockerOptions = BlockerOptions {
             debug: false,
             enable_optimizations: false,    // optimizations will reduce number of rules
-            load_cosmetic_filters: false,   
             load_network_filters: true
         };
 
@@ -1163,7 +1160,6 @@ mod blocker_tests {
         let blocker_options: BlockerOptions = BlockerOptions {
             debug: false,
             enable_optimizations: false,    // optimizations will reduce number of rules
-            load_cosmetic_filters: false,   
             load_network_filters: true
         };
 
@@ -1203,7 +1199,6 @@ mod blocker_tests {
         let blocker_options: BlockerOptions = BlockerOptions {
             debug: false,
             enable_optimizations: false,    // optimizations will reduce number of rules
-            load_cosmetic_filters: false,   
             load_network_filters: true
         };
 
@@ -1230,7 +1225,6 @@ mod blocker_tests {
         let blocker_options: BlockerOptions = BlockerOptions {
             debug: false,
             enable_optimizations: false,
-            load_cosmetic_filters: false,   
             load_network_filters: true
         };
 
@@ -1250,7 +1244,6 @@ mod blocker_tests {
             let blocker_options: BlockerOptions = BlockerOptions {
                 debug: false,
                 enable_optimizations: false,
-                load_cosmetic_filters: false,   
                 load_network_filters: true
             };
 
@@ -1268,7 +1261,6 @@ mod blocker_tests {
             let blocker_options: BlockerOptions = BlockerOptions {
                 debug: false,
                 enable_optimizations: true,
-                load_cosmetic_filters: false,   
                 load_network_filters: true
             };
 
@@ -1287,7 +1279,6 @@ mod blocker_tests {
         let blocker_options: BlockerOptions = BlockerOptions {
             debug: false,
             enable_optimizations: true,
-            load_cosmetic_filters: false,   
             load_network_filters: true
         };
 
@@ -1317,6 +1308,7 @@ mod blocker_tests {
     }
 }
 
+#[cfg(test)]
 mod legacy_rule_parsing_tests {
     use crate::utils::rules_from_lists;
     use crate::lists::parse_filters;
@@ -1373,7 +1365,6 @@ mod legacy_rule_parsing_tests {
         let blocker_options = BlockerOptions {
             debug: false,
             enable_optimizations: false,    // optimizations will reduce number of rules
-            load_cosmetic_filters: false,   
             load_network_filters: true
         };
 
