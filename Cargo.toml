@@ -64,6 +64,10 @@ harness = false
 name = "bench_rules"
 harness = false
 
+[[bench]]
+name = "bench_cosmetic_matching"
+harness = false
+
 [features]
 default = ["full-regex-handling", "object-pooling"]
 full-domain-matching = [] # feature has no explicit dependencies
