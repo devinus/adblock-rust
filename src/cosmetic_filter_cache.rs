@@ -431,3 +431,65 @@ fn hostname_domain_hashes(hostname: &str, domain: &str) -> (Vec<Hash>, Vec<Hash>
 
     (request_entities, request_hostnames)
 }
+
+#[cfg(test)]
+mod cosmetic_cache_tests {
+    use super::*;
+
+    #[test]
+    fn exceptions() {
+        let rules = vec![
+            "~example.com##.item",
+            "sub.example.com#@#.item2",
+        ];
+        let cfcache = CosmeticFilterCache::new(rules.iter().map(|r| CosmeticFilter::parse(r, false).unwrap()).collect::<Vec<_>>());
+
+        let out = cfcache.hostname_stylesheet("test.com");
+        let mut expected = HostnameSpecificResources::empty();
+        assert_eq!(out, expected);
+
+        let out = cfcache.hostname_stylesheet("example.com");
+        expected.exceptions.hide_exceptions.insert(".item".into());
+        assert_eq!(out, expected);
+
+        let out = cfcache.hostname_stylesheet("sub.example.com");
+        expected.exceptions.hide_exceptions.insert(".item2".into());
+        assert_eq!(out, expected);
+    }
+
+    #[test]
+    fn exceptions2() {
+        let rules = vec![
+            "example.com,~sub.example.com##.item",
+        ];
+        let cfcache = CosmeticFilterCache::new(rules.iter().map(|r| CosmeticFilter::parse(r, false).unwrap()).collect::<Vec<_>>());
+
+        let out = cfcache.hostname_stylesheet("test.com");
+        let mut expected = HostnameSpecificResources::empty();
+        assert_eq!(out, expected);
+
+        let out = cfcache.hostname_stylesheet("example.com");
+        expected.stylesheet = ".item{display:none !important;}\n".into();
+        assert_eq!(out, expected);
+
+        let out = cfcache.hostname_stylesheet("sub.example.com");
+        let mut expected = HostnameSpecificResources::empty();
+        expected.exceptions.hide_exceptions.insert(".item".into());
+        assert_eq!(out, expected);
+    }
+
+    #[test]
+    fn base_stylesheet() {
+        let rules = vec![
+            "##a[href=\"https://ads.com\"]",
+            "~test.com##div > p.ads",
+            "example.com,~sub.example.com##[href^=\"http://malware.ru\"]",
+            "###simple-generic",
+            "##.complex #generic",
+        ];
+        let cfcache = CosmeticFilterCache::new(rules.iter().map(|r| CosmeticFilter::parse(r, false).unwrap()).collect::<Vec<_>>());
+
+        let out = cfcache.base_stylesheet();
+        assert_eq!(out, "a[href=\"https://ads.com\"],div > p.ads{display:none !important;}".to_string());
+    }
+}
