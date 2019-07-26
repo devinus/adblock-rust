@@ -43,6 +43,23 @@ fn rules_to_stylesheet(rules: &[CosmeticFilter]) -> String {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct HostnameSpecificResources {
+    pub stylesheet: String,
+    pub exceptions: HostnameExceptions,
+    pub script_injections: Vec<String>,
+}
+
+impl HostnameSpecificResources {
+    pub fn empty() -> Self {
+        Self {
+            stylesheet: String::new(),
+            exceptions: HostnameExceptions::new(),
+            script_injections: vec![],
+        }
+    }
+}
+
 pub struct CosmeticFilterCache {
     simple_class_rules: HashSet<String>,
     simple_id_rules: HashSet<String>,
