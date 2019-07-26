@@ -222,6 +222,44 @@ impl CosmeticFilterCache {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct HostnameExceptions {
+    hide_exceptions: HashSet<String>,
+    style_exceptions: HashSet<(String, String)>,
+    script_inject_exceptions: HashSet<String>,
+}
+
+impl HostnameExceptions {
+    pub fn new() -> Self {
+        HostnameExceptions {
+            hide_exceptions: HashSet::new(),
+            style_exceptions: HashSet::new(),
+            script_inject_exceptions: HashSet::new(),
+        }
+    }
+
+    pub fn insert(&mut self, rule: &SpecificFilterType) {
+        match rule {
+            SpecificFilterType::Hide(_) => (),
+            SpecificFilterType::Unhide(sel) => {
+                self.hide_exceptions.insert(sel.clone());
+            }
+            _ => (), // TODO
+        }
+    }
+
+    /// Rules are allowed if the rule is not an exception rule and doesn't have a corresponding
+    /// exception rule added previously.
+    pub fn is_allowed(&self, rule: &SpecificFilterType) -> bool {
+        match rule {
+            SpecificFilterType::Hide(sel) => !self.hide_exceptions.contains(sel),
+            SpecificFilterType::Style(sel, style) => !self.style_exceptions.contains(&(sel.to_string(), style.to_string())),
+            SpecificFilterType::ScriptInject(sel) => !self.script_inject_exceptions.contains(sel),
+            _ => false,
+        }
+    }
+}
+
 pub struct HostnameRuleDb {
     db: HashMap<Hash, Vec<SpecificFilterType>>,
 }
