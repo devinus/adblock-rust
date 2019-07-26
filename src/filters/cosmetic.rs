@@ -335,6 +335,27 @@ impl CosmeticFilter {
 
         true
     }
+
+    /// In general, adding a hostname or entity to a rule *increases* the number of situations in
+    /// which it applies. However, if a specific rule only has negated hostnames or entities, it
+    /// technically should apply to any hostname which does not match a negation.
+    ///
+    /// See: https://github.com/chrisaljoudi/uBlock/issues/145
+    ///
+    /// To account for this inconsistency, this method will generate and return the corresponding
+    /// 'hidden' generic rule if one applies.
+    pub fn hidden_generic_rule(&self) -> Option<CosmeticFilter> {
+        if self.hostnames.is_some() || self.entities.is_some() {
+            None
+        } else if self.not_hostnames.is_some() || self.entities.is_some() {
+            let mut generic_rule = self.clone();
+            generic_rule.not_hostnames = None;
+            generic_rule.not_entities = None;
+            Some(generic_rule)
+        } else {
+            None
+        }
+    }
 }
 
 /// Returns a slice of `hostname` up to and including the segment that overlaps with the first

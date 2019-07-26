@@ -11,33 +11,19 @@ lazy_static! {
     static ref PUBLIC_SUFFIXES: psl::List = psl::List::new();
 }
 
-fn rules_to_stylesheet(rules: &[CosmeticFilter]) -> String {
+fn generic_rules_to_stylesheet(rules: &[CosmeticFilter]) -> String {
     if rules.is_empty() {
         "".into()
     } else {
-        let mut styled_rules = Vec::with_capacity(10);
-
         let mut stylesheet = String::with_capacity(100 * rules.len());
         stylesheet += &rules[0].selector;
         rules.iter()
             .skip(1)
             .for_each(|rule| {
-                if rule.style.is_some() {
-                    styled_rules.push(rule);
-                } else {
-                    stylesheet += ",";
-                    stylesheet += &rule.selector;
-                }
-            });
-        stylesheet += "{display:none !important;}\n";
-
-        styled_rules.iter()
-            .for_each(|rule| {
+                stylesheet += ",";
                 stylesheet += &rule.selector;
-                stylesheet += " {";
-                stylesheet += rule.style.as_ref().unwrap();
-                stylesheet += "}\n";
             });
+        stylesheet += "{display:none !important;}";
 
         stylesheet
     }
@@ -60,13 +46,52 @@ impl HostnameSpecificResources {
     }
 }
 
+fn specific_rules_to_stylesheet(rules: &[&SpecificFilterType]) -> (String, Vec<String>) {
+    if rules.is_empty() {
+        ("".into(), vec![])
+    } else {
+        let mut script_rules = Vec::with_capacity(10);
+
+        let mut hide_stylesheet = String::with_capacity(100 * rules.len());
+        let mut styled_stylesheet = String::with_capacity(10 * rules.len());
+
+        rules.iter()
+            .for_each(|rule| {
+                match rule {
+                    SpecificFilterType::Hide(sel) => {
+                        hide_stylesheet += sel;
+                        hide_stylesheet += ",";
+                    }
+                    SpecificFilterType::Style(sel, style) => {
+                        styled_stylesheet += sel;
+                        styled_stylesheet += "{";
+                        styled_stylesheet += style;
+                        styled_stylesheet += "}\n";
+                    }
+                    SpecificFilterType::ScriptInject(sel) => {
+                        script_rules.push(sel.to_owned());
+                    }
+                    _ => unreachable!()
+                }
+            });
+
+        if let Some(_trailing_comma) = hide_stylesheet.pop() {
+            hide_stylesheet += "{display:none !important;}\n";
+        }
+
+        hide_stylesheet += &styled_stylesheet;
+
+        (hide_stylesheet, script_rules)
+    }
+}
+
 pub struct CosmeticFilterCache {
     simple_class_rules: HashSet<String>,
     simple_id_rules: HashSet<String>,
     complex_class_rules: HashMap<String, Vec<String>>,
     complex_id_rules: HashMap<String, Vec<String>>,
 
-    specific_rules: Vec<CosmeticFilter>,
+    specific_rules: HostnameRuleDb,
 
     misc_rules: Vec<CosmeticFilter>,
     // The base stylesheet can be invalidated if a new miscellaneous rule is added. RefCell is used
@@ -82,8 +107,7 @@ impl CosmeticFilterCache {
             complex_class_rules: HashMap::with_capacity(rules.len() / 2),
             complex_id_rules: HashMap::with_capacity(rules.len() / 2),
 
-            specific_rules: Vec::with_capacity(rules.len() / 2),
-            //specific_scripts = HashMap<String, Vec<String>>
+            specific_rules: HostnameRuleDb::new(),
 
             misc_rules: Vec::with_capacity(rules.len() / 30),
             base_stylesheet: RefCell::new(None),
@@ -102,52 +126,53 @@ impl CosmeticFilterCache {
     /// This operation can be done for free if the stylesheet has not already been invalidated.
     fn regen_base_stylesheet(&self) {
         if self.base_stylesheet.borrow().is_none() {
-            let stylesheet = rules_to_stylesheet(&self.misc_rules);
+            let stylesheet = generic_rules_to_stylesheet(&self.misc_rules);
             self.base_stylesheet.replace(Some(stylesheet));
         }
     }
 
     pub fn add_filter(&mut self, rule: CosmeticFilter) {
-        //TODO deal with script inject and unhide rules
-        if rule.mask.contains(CosmeticFilterMask::SCRIPT_INJECT) ||
-            rule.mask.contains(CosmeticFilterMask::UNHIDE)
-        {
-            return;
-        }
-
         if rule.has_hostname_constraint() {
-            self.specific_rules.push(rule);
-        } else {
-            if rule.mask.contains(CosmeticFilterMask::IS_CLASS_SELECTOR) {
-                if let Some(key) = &rule.key {
-                    let key = key.clone();
-                    if rule.mask.contains(CosmeticFilterMask::IS_SIMPLE) {
-                        self.simple_class_rules.insert(key);
-                    } else {
-                        if let Some(bucket) = self.complex_class_rules.get_mut(&key) {
-                            bucket.push(rule.selector);
-                        } else {
-                            self.complex_class_rules.insert(key, vec![rule.selector]);
-                        }
-                    }
-                }
-            } else if rule.mask.contains(CosmeticFilterMask::IS_ID_SELECTOR) {
-                if let Some(key) = &rule.key {
-                    let key = key.clone();
-                    if rule.mask.contains(CosmeticFilterMask::IS_SIMPLE) {
-                        self.simple_id_rules.insert(key);
-                    } else {
-                        if let Some(bucket) = self.complex_id_rules.get_mut(&key) {
-                            bucket.push(rule.selector);
-                        } else {
-                            self.complex_id_rules.insert(key, vec![rule.selector]);
-                        }
-                    }
-                }
-            } else {
-                self.misc_rules.push(rule);
-                self.base_stylesheet.replace(None);
+            if let Some(generic_rule) = rule.hidden_generic_rule() {
+                self.add_generic_filter(generic_rule);
             }
+            self.specific_rules.store_rule(rule);
+        } else {
+            self.add_generic_filter(rule);
+        }
+    }
+
+    /// Add a filter, assuming it has already been determined to be a generic rule
+    fn add_generic_filter(&mut self, rule: CosmeticFilter) {
+        if rule.mask.contains(CosmeticFilterMask::IS_CLASS_SELECTOR) {
+            if let Some(key) = &rule.key {
+                let key = key.clone();
+                if rule.mask.contains(CosmeticFilterMask::IS_SIMPLE) {
+                    self.simple_class_rules.insert(key);
+                } else {
+                    if let Some(bucket) = self.complex_class_rules.get_mut(&key) {
+                        bucket.push(rule.selector);
+                    } else {
+                        self.complex_class_rules.insert(key, vec![rule.selector]);
+                    }
+                }
+            }
+        } else if rule.mask.contains(CosmeticFilterMask::IS_ID_SELECTOR) {
+            if let Some(key) = &rule.key {
+                let key = key.clone();
+                if rule.mask.contains(CosmeticFilterMask::IS_SIMPLE) {
+                    self.simple_id_rules.insert(key);
+                } else {
+                    if let Some(bucket) = self.complex_id_rules.get_mut(&key) {
+                        bucket.push(rule.selector);
+                    } else {
+                        self.complex_id_rules.insert(key, vec![rule.selector]);
+                    }
+                }
+            }
+        } else {
+            self.misc_rules.push(rule);
+            self.base_stylesheet.replace(None);
         }
     }
 
@@ -213,23 +238,39 @@ impl CosmeticFilterCache {
         Some(stylesheet)
     }
 
-    pub fn hostname_stylesheet(&self, hostname: &str) -> String {
+    pub fn hostname_stylesheet(&self, hostname: &str) -> HostnameSpecificResources {
         let domain = match PUBLIC_SUFFIXES.domain(hostname) {
             Some(domain) => domain,
-            None => return String::new(),
+            None => return HostnameSpecificResources::empty(),
         };
         let domain_str = domain.to_str();
 
         let (request_entities, request_hostnames) = hostname_domain_hashes(hostname, domain_str);
 
-        // TODO it would probably be better to use hashmaps here
-        rules_to_stylesheet(&self.specific_rules
-            .iter()
-            .filter(|rule| rule.matches(&request_entities[..], &request_hostnames[..]))
-            .cloned()
-            .collect::<Vec<_>>())
+        let mut rules_that_apply = vec![];
+        for hash in request_entities.iter().chain(request_hostnames.iter()) {
+            if let Some(specific_rules) = self.specific_rules.retrieve(hash) {
+                rules_that_apply.extend(specific_rules);
+            }
+        };
 
-        // TODO Investigate using something like a HostnameBasedDB for this.
+        let mut exceptions = HostnameExceptions::new();
+
+        rules_that_apply.iter().for_each(|r| {
+            exceptions.insert(r);
+        });
+
+        let rules_that_apply = rules_that_apply.iter().map(|r| r.to_owned()).filter(|r| {
+            exceptions.is_allowed(r)
+        }).collect::<Vec<_>>();
+
+        let (stylesheet, script_injections) = specific_rules_to_stylesheet(&rules_that_apply[..]);
+
+        HostnameSpecificResources {
+            stylesheet,
+            exceptions,
+            script_injections,
+        }
     }
 
     pub fn base_stylesheet(&self) -> String {
