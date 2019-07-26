@@ -222,6 +222,113 @@ impl CosmeticFilterCache {
     }
 }
 
+pub struct HostnameRuleDb {
+    db: HashMap<Hash, Vec<SpecificFilterType>>,
+}
+
+/// Each hostname-specific filter can be pointed to by several different hostnames, and each
+/// hostname can correspond to several different filters. To effectively store and access those
+/// filters by hostname, all the non-hostname information for filters is stored in per-hostname
+/// "buckets" within a Vec, and each bucket is identified by its index. Hostname hashes are used as
+/// keys to get the indices of relevant buckets, which are in turn used to retrieve all the filters
+/// that apply.
+impl HostnameRuleDb {
+    pub fn new() -> Self {
+        HostnameRuleDb {
+            db: HashMap::new(),
+        }
+    }
+
+    pub fn store_rule(&mut self, rule: CosmeticFilter) {
+        let kind = SpecificFilterType::from(&rule);
+
+        if let Some(hostnames) = rule.hostnames {
+            hostnames.iter().for_each(|h| {
+                self.store(h, kind.clone())
+            });
+        }
+        if let Some(entities) = rule.entities {
+            entities.iter().for_each(|e| {
+                self.store(e, kind.clone())
+            });
+        }
+
+        let kind = kind.negated();
+
+        if let Some(not_hostnames) = rule.not_hostnames {
+            not_hostnames.iter().for_each(|h| {
+                self.store(h, kind.clone())
+            });
+        }
+        if let Some(not_entities) = rule.not_entities {
+            not_entities.iter().for_each(|e| {
+                self.store(e, kind.clone())
+            });
+        }
+    }
+
+    fn store(&mut self, hostname: &Hash, kind: SpecificFilterType) {
+        if let Some(bucket) = self.db.get_mut(hostname) {
+            bucket.push(kind);
+        } else {
+            self.db.insert(hostname.clone(), vec![kind]);
+        }
+    }
+
+    pub fn retrieve<'a>(&'a self, hostname: &Hash) -> Option<&'a[SpecificFilterType]> {
+        if let Some(bucket) = self.db.get(hostname) {
+            Some(&bucket)
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum SpecificFilterType {
+    // Parameter is the rule's selector
+    Hide(String),
+    Unhide(String),
+
+    // Parameters are the rule's selector, and its additional style
+    Style(String, String),
+    UnhideStyle(String, String),          // Doesn't happen in practice
+
+    // Parameter is the rule's injected script
+    ScriptInject(String),
+    UnhideScriptInject(String),           // Barely happens in practice
+}
+
+/// This implementation assumes the given rule has hostname or entity constraints, and that the
+/// appropriate 'hidden' generic rule has already been applied externally if necessary.
+impl From<&CosmeticFilter> for SpecificFilterType {
+    fn from(rule: &CosmeticFilter) -> Self {
+        if rule.mask.contains(CosmeticFilterMask::UNHIDE) {
+            SpecificFilterType::Unhide(rule.selector.clone())
+        } else if let Some(ref style) = rule.style {
+            SpecificFilterType::Style(rule.selector.clone(), style.clone())
+        } else if rule.mask.contains(CosmeticFilterMask::SCRIPT_INJECT) {
+            SpecificFilterType::ScriptInject(rule.selector.clone())
+        } else {
+            SpecificFilterType::Hide(rule.selector.clone())
+        }
+    }
+}
+
+impl SpecificFilterType {
+    pub fn negated(self) -> Self {
+        match self {
+            SpecificFilterType::Hide(sel) => SpecificFilterType::Unhide(sel),
+            SpecificFilterType::Unhide(sel) => SpecificFilterType::Hide(sel),
+            SpecificFilterType::Style(sel, style) => SpecificFilterType::UnhideStyle(sel, style),
+            SpecificFilterType::UnhideStyle(sel, style) => SpecificFilterType::Style(sel, style),
+            SpecificFilterType::ScriptInject(script) => SpecificFilterType::UnhideScriptInject(script),
+            SpecificFilterType::UnhideScriptInject(script) => SpecificFilterType::ScriptInject(script),
+
+        }
+    }
+}
+
 fn hostname_domain_hashes(hostname: &str, domain: &str) -> (Vec<Hash>, Vec<Hash>) {
     let request_entities = crate::filters::cosmetic::get_entity_hashes_from_labels(hostname, domain);
     let request_hostnames = crate::filters::cosmetic::get_hostname_hashes_from_labels(hostname, domain);
