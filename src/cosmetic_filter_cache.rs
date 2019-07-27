@@ -40,7 +40,7 @@ impl HostnameSpecificResources {
     pub fn empty() -> Self {
         Self {
             stylesheet: String::new(),
-            exceptions: HostnameExceptions::new(),
+            exceptions: HostnameExceptions::default(),
             script_injections: vec![],
         }
     }
@@ -176,29 +176,33 @@ impl CosmeticFilterCache {
         }
     }
 
-    pub fn class_id_stylesheet(&self, classes: &[String], ids: &[String]) -> Option<String> {
+    pub fn class_id_stylesheet(&self, classes: &[String], ids: &[String], exceptions: &HostnameExceptions) -> Option<String> {
         let mut simple_classes = vec![];
         let mut simple_ids = vec![];
         let mut complex_selectors = vec![];
 
         classes.iter().for_each(|class| {
-            if !self.simple_class_rules.contains(class) {
-                return;
+            if self.simple_class_rules.contains(class) {
+                if exceptions.allow_generic_selector(&format!(".{}", class)) {
+                    simple_classes.push(class);
+                }
             }
             if let Some(bucket) = self.complex_class_rules.get(class) {
-                complex_selectors.extend_from_slice(&bucket[..]);
-            } else {
-                simple_classes.push(class);
+                complex_selectors.extend(bucket.iter().filter(|sel| {
+                    exceptions.allow_generic_selector(sel)
+                }));
             }
         });
         ids.iter().for_each(|id| {
-            if !self.simple_id_rules.contains(id) {
-                return;
+            if self.simple_id_rules.contains(id) {
+                if exceptions.allow_generic_selector(&format!("#{}", id)) {
+                    simple_ids.push(id);
+                }
             }
             if let Some(bucket) = self.complex_id_rules.get(id) {
-                complex_selectors.extend_from_slice(&bucket[..]);
-            } else {
-                simple_ids.push(id);
+                complex_selectors.extend(bucket.iter().filter(|sel| {
+                    exceptions.allow_generic_selector(sel)
+                }));
             }
         });
 
@@ -254,14 +258,14 @@ impl CosmeticFilterCache {
             }
         };
 
-        let mut exceptions = HostnameExceptions::new();
+        let mut exceptions = HostnameExceptions::default();
 
         rules_that_apply.iter().for_each(|r| {
             exceptions.insert(r);
         });
 
         let rules_that_apply = rules_that_apply.iter().map(|r| r.to_owned()).filter(|r| {
-            exceptions.is_allowed(r)
+            exceptions.allow_specific_rule(r)
         }).collect::<Vec<_>>();
 
         let (stylesheet, script_injections) = specific_rules_to_stylesheet(&rules_that_apply[..]);
@@ -280,7 +284,7 @@ impl CosmeticFilterCache {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Default, Debug, PartialEq, Eq)]
 pub struct HostnameExceptions {
     hide_exceptions: HashSet<String>,
     style_exceptions: HashSet<(String, String)>,
@@ -288,14 +292,6 @@ pub struct HostnameExceptions {
 }
 
 impl HostnameExceptions {
-    pub fn new() -> Self {
-        HostnameExceptions {
-            hide_exceptions: HashSet::new(),
-            style_exceptions: HashSet::new(),
-            script_inject_exceptions: HashSet::new(),
-        }
-    }
-
     pub fn insert(&mut self, rule: &SpecificFilterType) {
         match rule {
             SpecificFilterType::Hide(_) => (),
@@ -306,9 +302,15 @@ impl HostnameExceptions {
         }
     }
 
-    /// Rules are allowed if the rule is not an exception rule and doesn't have a corresponding
-    /// exception rule added previously.
-    pub fn is_allowed(&self, rule: &SpecificFilterType) -> bool {
+    /// A generic selector is allowed if it is not excepted by this set of exceptions.
+    pub fn allow_generic_selector(&self, selector: &str) -> bool {
+        !self.hide_exceptions.contains(selector)
+    }
+
+    /// Specific rules are allowed if they can be used to hide, restyle, or inject a script in the
+    /// context of this set of exceptions - i.e. if the rule itself is not an exception rule and
+    /// doesn't have a corresponding exception rule added previously.
+    pub fn allow_specific_rule(&self, rule: &SpecificFilterType) -> bool {
         match rule {
             SpecificFilterType::Hide(sel) => !self.hide_exceptions.contains(sel),
             SpecificFilterType::Style(sel, style) => !self.style_exceptions.contains(&(sel.to_string(), style.to_string())),
