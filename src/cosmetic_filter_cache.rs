@@ -438,13 +438,21 @@ fn hostname_domain_hashes(hostname: &str, domain: &str) -> (Vec<Hash>, Vec<Hash>
 mod cosmetic_cache_tests {
     use super::*;
 
+    fn cache_from_rules(rules: Vec<&str>) -> CosmeticFilterCache {
+        let parsed_rules = rules
+            .iter()
+            .map(|r| CosmeticFilter::parse(r, false).unwrap())
+            .collect::<Vec<_>>();
+
+        CosmeticFilterCache::new(parsed_rules)
+    }
+
     #[test]
     fn exceptions() {
-        let rules = vec![
+        let cfcache = cache_from_rules(vec![
             "~example.com##.item",
             "sub.example.com#@#.item2",
-        ];
-        let cfcache = CosmeticFilterCache::new(rules.iter().map(|r| CosmeticFilter::parse(r, false).unwrap()).collect::<Vec<_>>());
+        ]);
 
         let out = cfcache.hostname_stylesheet("test.com");
         let mut expected = HostnameSpecificResources::empty();
@@ -461,10 +469,9 @@ mod cosmetic_cache_tests {
 
     #[test]
     fn exceptions2() {
-        let rules = vec![
+        let cfcache = cache_from_rules(vec![
             "example.com,~sub.example.com##.item",
-        ];
-        let cfcache = CosmeticFilterCache::new(rules.iter().map(|r| CosmeticFilter::parse(r, false).unwrap()).collect::<Vec<_>>());
+        ]);
 
         let out = cfcache.hostname_stylesheet("test.com");
         let mut expected = HostnameSpecificResources::empty();
@@ -482,16 +489,86 @@ mod cosmetic_cache_tests {
 
     #[test]
     fn base_stylesheet() {
-        let rules = vec![
+        let cfcache = cache_from_rules(vec![
             "##a[href=\"https://ads.com\"]",
             "~test.com##div > p.ads",
             "example.com,~sub.example.com##[href^=\"http://malware.ru\"]",
             "###simple-generic",
             "##.complex #generic",
-        ];
-        let cfcache = CosmeticFilterCache::new(rules.iter().map(|r| CosmeticFilter::parse(r, false).unwrap()).collect::<Vec<_>>());
+        ]);
 
         let out = cfcache.base_stylesheet();
         assert_eq!(out, "a[href=\"https://ads.com\"],div > p.ads{display:none !important;}".to_string());
+    }
+
+    #[test]
+    fn matching_class_id_stylesheet() {
+        let rules = vec![
+            "##.a-class",
+            "###simple-id",
+            "##.a-class .with .children",
+            "##.children .including #simple-id",
+            "##a.a-class",
+        ];
+        let cfcache = CosmeticFilterCache::new(rules.iter().map(|r| CosmeticFilter::parse(r, false).unwrap()).collect::<Vec<_>>());
+
+        let out = cfcache.class_id_stylesheet(&vec!["with".into()], &vec![], &HostnameExceptions::default());
+        assert_eq!(out, None);
+
+        let out = cfcache.class_id_stylesheet(&vec![], &vec!["with".into()], &HostnameExceptions::default());
+        assert_eq!(out, None);
+
+        let out = cfcache.class_id_stylesheet(&vec![], &vec!["a-class".into()], &HostnameExceptions::default());
+        assert_eq!(out, None);
+
+        let out = cfcache.class_id_stylesheet(&vec!["simple-id".into()], &vec![], &HostnameExceptions::default());
+        assert_eq!(out, None);
+
+        let out = cfcache.class_id_stylesheet(&vec!["a-class".into()], &vec![], &HostnameExceptions::default());
+        assert_eq!(out, Some(".a-class,.a-class .with .children{display:none !important;}".to_string()));
+
+        let out = cfcache.class_id_stylesheet(&vec!["children".into(), "a-class".into()], &vec![], &HostnameExceptions::default());
+        assert_eq!(out, Some(".a-class,.children .including #simple-id,.a-class .with .children{display:none !important;}".to_string()));
+
+        let out = cfcache.class_id_stylesheet(&vec![], &vec!["simple-id".into()], &HostnameExceptions::default());
+        assert_eq!(out, Some("#simple-id{display:none !important;}".to_string()));
+
+        let out = cfcache.class_id_stylesheet(&vec!["children".into(), "a-class".into()], &vec!["simple-id".into()], &HostnameExceptions::default());
+        assert_eq!(out, Some(".a-class,#simple-id,.children .including #simple-id,.a-class .with .children{display:none !important;}".to_string()));
+    }
+
+    #[test]
+    fn class_id_exceptions() {
+        let rules = vec![
+            "##.a-class",
+            "###simple-id",
+            "##.a-class .with .children",
+            "##.children .including #simple-id",
+            "##a.a-class",
+            "example.*#@#.a-class",
+            "~test.com###test-element",
+        ];
+        let cfcache = CosmeticFilterCache::new(rules.iter().map(|r| CosmeticFilter::parse(r, false).unwrap()).collect::<Vec<_>>());
+        let exceptions = cfcache.hostname_stylesheet("example.co.uk").exceptions;
+
+        let out = cfcache.class_id_stylesheet(&vec!["a-class".into()], &vec![], &exceptions);
+        assert_eq!(out, Some(".a-class .with .children{display:none !important;}".to_string()));
+
+        let out = cfcache.class_id_stylesheet(&vec!["children".into(), "a-class".into()], &vec!["simple-id".into()], &exceptions);
+        assert_eq!(out, Some("#simple-id,.children .including #simple-id,.a-class .with .children{display:none !important;}".to_string()));
+
+        let out = cfcache.class_id_stylesheet(&vec![], &vec!["test-element".into()], &exceptions);
+        assert_eq!(out, Some("#test-element{display:none !important;}".to_string()));
+
+        let exceptions = cfcache.hostname_stylesheet("a1.test.com").exceptions;
+
+        let out = cfcache.class_id_stylesheet(&vec!["a-class".into()], &vec![], &exceptions);
+        assert_eq!(out, Some(".a-class,.a-class .with .children{display:none !important;}".to_string()));
+
+        let out = cfcache.class_id_stylesheet(&vec!["children".into(), "a-class".into()], &vec!["simple-id".into()], &exceptions);
+        assert_eq!(out, Some(".a-class,#simple-id,.children .including #simple-id,.a-class .with .children{display:none !important;}".to_string()));
+
+        let out = cfcache.class_id_stylesheet(&vec![], &vec!["test-element".into()], &exceptions);
+        assert_eq!(out, None);
     }
 }
