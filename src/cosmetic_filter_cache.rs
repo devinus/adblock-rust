@@ -300,12 +300,19 @@ struct HostnameExceptionsBuilder {
 
 impl HostnameExceptionsBuilder {
     pub fn insert(&mut self, rule: &SpecificFilterType) {
+        use SpecificFilterType as Rule;
+
         match rule {
-            SpecificFilterType::Hide(_) => (),
-            SpecificFilterType::Unhide(sel) => {
+            Rule::Hide(_) | Rule::Style(_, _) | Rule::ScriptInject(_) => (),
+            Rule::Unhide(sel) => {
                 self.hide_exceptions.insert(sel.clone());
             }
-            _ => (), // TODO
+            Rule::UnhideStyle(sel, style) => {
+                self.style_exceptions.insert((sel.clone(), style.clone()));
+            }
+            Rule::UnhideScriptInject(script) => {
+                self.script_inject_exceptions.insert(script.clone());
+            }
         }
     }
 
@@ -409,14 +416,26 @@ pub enum SpecificFilterType {
 /// appropriate 'hidden' generic rule has already been applied externally if necessary.
 impl From<&CosmeticFilter> for SpecificFilterType {
     fn from(rule: &CosmeticFilter) -> Self {
-        if rule.mask.contains(CosmeticFilterMask::UNHIDE) {
-            SpecificFilterType::Unhide(rule.selector.clone())
-        } else if let Some(ref style) = rule.style {
-            SpecificFilterType::Style(rule.selector.clone(), style.clone())
+        let unhide = rule.mask.contains(CosmeticFilterMask::UNHIDE);
+
+        if let Some(ref style) = rule.style {
+            if unhide {
+                SpecificFilterType::UnhideStyle(rule.selector.clone(), style.clone())
+            } else {
+                SpecificFilterType::Style(rule.selector.clone(), style.clone())
+            }
         } else if rule.mask.contains(CosmeticFilterMask::SCRIPT_INJECT) {
-            SpecificFilterType::ScriptInject(rule.selector.clone())
+            if unhide {
+                SpecificFilterType::UnhideScriptInject(rule.selector.clone())
+            } else {
+                SpecificFilterType::ScriptInject(rule.selector.clone())
+            }
         } else {
-            SpecificFilterType::Hide(rule.selector.clone())
+            if unhide {
+                SpecificFilterType::Unhide(rule.selector.clone())
+            } else {
+                SpecificFilterType::Hide(rule.selector.clone())
+            }
         }
     }
 }
