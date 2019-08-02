@@ -344,10 +344,14 @@ impl CosmeticFilter {
     ///
     /// To account for this inconsistency, this method will generate and return the corresponding
     /// 'hidden' generic rule if one applies.
+    ///
+    /// Note that this behavior is not applied to script injections or custom style rules.
     pub fn hidden_generic_rule(&self) -> Option<CosmeticFilter> {
         if self.hostnames.is_some() || self.entities.is_some() {
             None
-        } else if self.not_hostnames.is_some() || self.entities.is_some() {
+        } else if (self.not_hostnames.is_some() || self.not_entities.is_some()) &&
+            (self.style.is_none() && !self.mask.contains(CosmeticFilterMask::SCRIPT_INJECT))
+        {
             let mut generic_rule = self.clone();
             generic_rule.not_hostnames = None;
             generic_rule.not_entities = None;
