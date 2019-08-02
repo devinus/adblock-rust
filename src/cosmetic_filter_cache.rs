@@ -5,6 +5,7 @@ use crate::utils::Hash;
 use std::collections::{HashSet, HashMap};
 use std::cell::RefCell;
 
+use serde::{Deserialize, Serialize};
 use psl::Psl;
 
 lazy_static! {
@@ -85,6 +86,7 @@ fn specific_rules_to_stylesheet(rules: &[&SpecificFilterType]) -> (String, Vec<S
     }
 }
 
+#[derive(Deserialize, Serialize)]
 pub struct CosmeticFilterCache {
     simple_class_rules: HashSet<String>,
     simple_id_rules: HashSet<String>,
@@ -322,6 +324,7 @@ impl HostnameExceptionsBuilder {
     }
 }
 
+#[derive(Deserialize, Serialize)]
 pub struct HostnameRuleDb {
     db: HashMap<Hash, Vec<SpecificFilterType>>,
 }
@@ -384,7 +387,7 @@ impl HostnameRuleDb {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum SpecificFilterType {
     // Parameter is the rule's selector
     Hide(String),
