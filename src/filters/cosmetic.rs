@@ -668,6 +668,12 @@ mod parse_tests {
         }
     }
 
+    impl From<CosmeticFilter> for CosmeticFilterBreakdown {
+        fn from(filter: CosmeticFilter) -> CosmeticFilterBreakdown {
+            (&filter).into()
+        }
+    }
+
     impl Default for CosmeticFilterBreakdown {
         fn default() -> Self {
             CosmeticFilterBreakdown {
@@ -691,7 +697,7 @@ mod parse_tests {
     /// Asserts that `rule` parses into a `CosmeticFilter` equivalent to the summary provided by
     /// `expected`.
     fn check_parse_result(rule: &str, expected: CosmeticFilterBreakdown) {
-        let filter: CosmeticFilterBreakdown = (&CosmeticFilter::parse(rule, false).unwrap()).into();
+        let filter: CosmeticFilterBreakdown = CosmeticFilter::parse(rule, false).unwrap().into();
         assert_eq!(expected, filter);
     }
 
@@ -1241,6 +1247,78 @@ mod parse_tests {
         assert!(CosmeticFilter::parse("twitter.com##article:has-text(/Promoted|Gesponsert|Реклама|Promocionado/):xpath(../..)", false).is_err());
         assert!(CosmeticFilter::parse("##", false).is_err());
         assert!(CosmeticFilter::parse("", false).is_err());
+    }
+
+    #[test]
+    fn hidden_generic() {
+        let rule = CosmeticFilter::parse("##.selector", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
+
+        let rule = CosmeticFilter::parse("test.com##.selector", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
+
+        let rule = CosmeticFilter::parse("test.*##.selector", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
+
+        let rule = CosmeticFilter::parse("test.com,~a.test.com##.selector", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
+
+        let rule = CosmeticFilter::parse("test.*,~a.test.com##.selector", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
+
+        let rule = CosmeticFilter::parse("test.*,~a.test.*##.selector", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
+
+        let rule = CosmeticFilter::parse("test.com#@#.selector", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
+
+        let rule = CosmeticFilter::parse("~test.com##.selector", false).unwrap();
+        assert_eq!(
+            CosmeticFilterBreakdown::from(rule.hidden_generic_rule().unwrap()),
+            CosmeticFilter::parse("##.selector", false).unwrap().into(),
+        );
+
+        let rule = CosmeticFilter::parse("~test.*##.selector", false).unwrap();
+        assert_eq!(
+            CosmeticFilterBreakdown::from(rule.hidden_generic_rule().unwrap()),
+            CosmeticFilter::parse("##.selector", false).unwrap().into(),
+        );
+
+        let rule = CosmeticFilter::parse("~test.*,~a.test.*##.selector", false).unwrap();
+        assert_eq!(
+            CosmeticFilterBreakdown::from(rule.hidden_generic_rule().unwrap()),
+            CosmeticFilter::parse("##.selector", false).unwrap().into(),
+        );
+
+        let rule = CosmeticFilter::parse("test.com##.selector:style(border-radius: 13px)", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
+
+        let rule = CosmeticFilter::parse("test.*##.selector:style(border-radius: 13px)", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
+
+        let rule = CosmeticFilter::parse("~test.com##.selector:style(border-radius: 13px)", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
+
+        let rule = CosmeticFilter::parse("~test.*##.selector:style(border-radius: 13px)", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
+
+        let rule = CosmeticFilter::parse("test.com#@#.selector:style(border-radius: 13px)", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
+
+        let rule = CosmeticFilter::parse("test.com##+js(nowebrtc.js)", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
+
+        let rule = CosmeticFilter::parse("test.*##+js(nowebrtc.js)", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
+
+        let rule = CosmeticFilter::parse("~test.com##+js(nowebrtc.js)", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
+
+        let rule = CosmeticFilter::parse("~test.*##+js(nowebrtc.js)", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
+
+        let rule = CosmeticFilter::parse("test.com#@#+js(nowebrtc.js)", false).unwrap();
+        assert!(rule.hidden_generic_rule().is_none());
     }
 }
 
