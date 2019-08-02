@@ -515,6 +515,72 @@ mod cosmetic_cache_tests {
     }
 
     #[test]
+    fn style_exceptions() {
+        let cfcache = cache_from_rules(vec![
+            "example.com,~sub.example.com##.element:style(background: #fff)",
+            "sub.test.example.com#@#.element:style(background: #fff)",
+            "a1.sub.example.com##.element",
+            "a2.sub.example.com##.element:style(background: #000)",
+        ]);
+
+        let out = cfcache.hostname_cosmetic_resources("sub.example.com");
+        let mut expected = HostnameSpecificResources::empty();
+        assert_eq!(out, expected);
+
+        let out = cfcache.hostname_cosmetic_resources("sub.test.example.com");
+        assert_eq!(out, expected);
+
+        let out = cfcache.hostname_cosmetic_resources("a1.sub.example.com");
+        expected.stylesheet = ".element{display:none !important;}\n".into();
+        assert_eq!(out, expected);
+
+        let out = cfcache.hostname_cosmetic_resources("test.example.com");
+        expected.stylesheet = ".element{background: #fff}\n".into();
+        assert_eq!(out, expected);
+
+        let out = cfcache.hostname_cosmetic_resources("a2.sub.example.com");
+        expected.stylesheet = ".element{background: #000}\n".into();
+        assert_eq!(out, expected);
+    }
+
+    #[test]
+    fn script_exceptions() {
+        let cfcache = cache_from_rules(vec![
+            "example.com,~sub.example.com##+js(set-constant.js, atob, trueFunc)",
+            "sub.test.example.com#@#+js(set-constant.js, atob, trueFunc)",
+            "cosmetic.net##+js(nowebrtc.js)",
+            "g.cosmetic.net##+js(window.open-defuser.js)",
+            "c.g.cosmetic.net#@#+js(nowebrtc.js)",
+        ]);
+
+        let out = cfcache.hostname_cosmetic_resources("sub.example.com");
+        let mut expected = HostnameSpecificResources::empty();
+        assert_eq!(out, expected);
+
+        let out = cfcache.hostname_cosmetic_resources("sub.test.example.com");
+        assert_eq!(out, expected);
+
+        let out = cfcache.hostname_cosmetic_resources("test.example.com");
+        expected.script_injections = vec!["set-constant.js, atob, trueFunc".into()];
+        assert_eq!(out, expected);
+
+        let out = cfcache.hostname_cosmetic_resources("cosmetic.net");
+        expected.script_injections = vec!["nowebrtc.js".into()];
+        assert_eq!(out, expected);
+
+        let out = cfcache.hostname_cosmetic_resources("g.cosmetic.net");
+        expected.script_injections = vec![
+            "nowebrtc.js".into(),
+            "window.open-defuser.js".into()
+        ];
+        assert_eq!(out, expected);
+
+        let out = cfcache.hostname_cosmetic_resources("c.g.cosmetic.net");
+        expected.script_injections = vec!["window.open-defuser.js".into()];
+        assert_eq!(out, expected);
+    }
+
+    #[test]
     fn base_stylesheet() {
         let cfcache = cache_from_rules(vec![
             "##a[href=\"https://ads.com\"]",
