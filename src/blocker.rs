@@ -113,7 +113,11 @@ impl Blocker {
      * Decide if a network request (usually from WebRequest API) should be
      * blocked, redirected or allowed.
      */
-    pub fn check(&self, request: &Request, skip_unimportant: bool, skip_exception: bool) -> BlockerResult {
+    pub fn check(&self, request: &Request) -> BlockerResult {
+        self.check_parameterised(request, false, false)
+    }
+
+    pub fn check_parameterised(&self, request: &Request, skip_unimportant: bool, skip_exception: bool) -> BlockerResult {
         if !self.load_network_filters || !request.is_supported {
             return BlockerResult::default();
         }
@@ -126,9 +130,9 @@ impl Blocker {
 
         // Check the filters in the following order:
         // 1. $important (not subject to exceptions)
-        // 2. redirection ($redirect=resource)
-        // 3. normal filters
-        // 4. exceptions
+        // 2. exceptions
+        // 3. redirection ($redirect=resource)
+        // 4. normal filters
         #[cfg(feature = "metrics")]
         print!("importants\t");
 
@@ -143,25 +147,10 @@ impl Blocker {
         }
         request.get_tokens(&mut request_tokens);
 
-        let filter = self
+        let mut filter = self
             .importants
             // Don't look at tags by default, only for the tagged rule bucket
-            .check(request, &request_tokens, &NO_TAGS)
-            .or_else(|| {
-                #[cfg(feature = "metrics")]
-                print!("tagged\t");
-                self.filters_tagged.check(request, &request_tokens, &self.tags_enabled)
-            })
-            .or_else(|| {
-                #[cfg(feature = "metrics")]
-                print!("redirects\t");
-                self.redirects.check(request, &request_tokens, &NO_TAGS)
-            })
-            .or_else(|| {
-                #[cfg(feature = "metrics")]
-                print!("filters\t"); 
-                self.filters.check(request, &request_tokens, &NO_TAGS)
-            });
+            .check(request, &request_tokens, &NO_TAGS);
 
         let exception = if skip_exception {
             None
@@ -184,6 +173,22 @@ impl Blocker {
                 }
             }
         };
+
+        if filter.is_none() && !skip_unimportant {
+            #[cfg(feature = "metrics")]
+            print!("tagged\t");
+            filter = self.filters_tagged.check(request, &request_tokens, &self.tags_enabled)
+                .or_else(|| {
+                    #[cfg(feature = "metrics")]
+                    print!("redirects\t");
+                    self.redirects.check(request, &request_tokens, &NO_TAGS)
+                })
+                .or_else(|| {
+                    #[cfg(feature = "metrics")]
+                    print!("filters\t"); 
+                    self.filters.check(request, &request_tokens, &NO_TAGS)
+                });
+        }
         
         #[cfg(feature = "metrics")]
         println!();
@@ -1049,7 +1054,7 @@ mod blocker_tests {
         let blocker = Blocker::new(network_filters, &blocker_options);
 
         requests.iter().for_each(|(req, expected_result)| {
-            let matched_rule = blocker.check(&req, false, false);
+            let matched_rule = blocker.check(&req);
             if *expected_result {
                 assert!(matched_rule.matched, "Expected match for {}", req.url);
             } else {
@@ -1151,7 +1156,7 @@ mod blocker_tests {
         assert_eq!(vec_hashmap_len(&blocker.filters_tagged.filter_map), 2);
 
         url_results.into_iter().for_each(|(req, expected_result)| {
-            let matched_rule = blocker.check(&req, false, false);
+            let matched_rule = blocker.check(&req);
             if expected_result {
                 assert!(matched_rule.matched, "Expected match for {}", req.url);
             } else {
@@ -1191,7 +1196,7 @@ mod blocker_tests {
         assert_eq!(vec_hashmap_len(&blocker.filters_tagged.filter_map), 4);
 
         url_results.into_iter().for_each(|(req, expected_result)| {
-            let matched_rule = blocker.check(&req, false, false);
+            let matched_rule = blocker.check(&req);
             if expected_result {
                 assert!(matched_rule.matched, "Expected match for {}", req.url);
             } else {
@@ -1233,7 +1238,7 @@ mod blocker_tests {
         assert_eq!(vec_hashmap_len(&blocker.filters_tagged.filter_map), 2);
 
         url_results.into_iter().for_each(|(req, expected_result)| {
-            let matched_rule = blocker.check(&req, false, false);
+            let matched_rule = blocker.check(&req);
             if expected_result {
                 assert!(matched_rule.matched, "Expected match for {}", req.url);
             } else {
@@ -1324,7 +1329,7 @@ mod blocker_tests {
         ];
         
         url_results.into_iter().for_each(|(req, expected_result)| {
-            let matched_rule = blocker.check(&req, false, false);
+            let matched_rule = blocker.check(&req);
             if expected_result {
                 assert!(matched_rule.matched, "Expected match for {}", req.url);
             } else {
@@ -1348,7 +1353,7 @@ mod blocker_tests {
 
         let request = Request::from_url("http://example.com/ad_banner.png").unwrap();
 
-        let matched_rule = blocker.check(&request, false, false);
+        let matched_rule = blocker.check(&request);
         assert!(!matched_rule.matched);
         assert!(matched_rule.exception.is_some());
     }
