@@ -8,12 +8,13 @@ lazy_static! {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
 pub struct Scriptlets {
-    scriptlets: HashMap<String, Scriptlet>
+    scriptlets: HashMap<String, Scriptlet>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
 pub struct Scriptlet {
-    parts: Vec<ScriptletPart>
+    parts: Vec<ScriptletPart>,
+    required_args: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -26,6 +27,7 @@ impl Scriptlet {
     pub fn parse(data: &str) -> Self {
         let mut parts = vec![];
         let mut last_end_index = 0;
+        let mut required_args = 0;
 
         for cap in TEMPLATE_ARGUMENT_RE.captures_iter(&data) {
             // `unwrap` is safe because the 0th match will always be available.
@@ -40,6 +42,10 @@ impl Scriptlet {
             let argnum = data[cap.start()+2..cap.start()+3].parse::<usize>().unwrap();
             parts.push(ScriptletPart::Argument(argnum));
 
+            if argnum > required_args {
+                required_args = argnum;
+            }
+
             last_end_index = cap.end();
         }
 
@@ -47,7 +53,7 @@ impl Scriptlet {
             parts.push(ScriptletPart::Literal(data[last_end_index..].to_string()));
         }
 
-        Self { parts }
+        Self { parts, required_args }
     }
 }
 
@@ -59,6 +65,8 @@ mod tests {
     fn parses_empty_scriptlet() {
         let scriptlet = Scriptlet::parse("");
         assert!(scriptlet.parts.is_empty());
+
+        assert_eq!(scriptlet.required_args, 0);
     }
 
     #[test]
@@ -74,6 +82,8 @@ mod tests {
             ScriptletPart::Argument(2),
             ScriptletPart::Literal(".".to_owned()),
         ]);
+
+        assert_eq!(scriptlet.required_args, 2);
     }
 
     #[test]
@@ -88,6 +98,8 @@ mod tests {
             ScriptletPart::Literal(" and ".to_owned()),
             ScriptletPart::Argument(2),
         ]);
+
+        assert_eq!(scriptlet.required_args, 2);
     }
 
     #[test]
@@ -106,6 +118,8 @@ mod tests {
             ScriptletPart::Literal(" ".to_owned()),
             ScriptletPart::Argument(2),
         ]);
+
+        assert_eq!(scriptlet.required_args, 3);
     }
 
     #[test]
@@ -118,6 +132,37 @@ mod tests {
             ScriptletPart::Argument(1),
             ScriptletPart::Literal(" argument is at the beginning".to_owned()),
         ]);
+
+        assert_eq!(scriptlet.required_args, 1);
+    }
+
+    #[test]
+    fn correct_number_of_required_args() {
+        let js_template = r###"{{8}} arguments are required to fill the {{8}}th argument!"###;
+
+        let scriptlet = Scriptlet::parse(&js_template);
+
+        assert_eq!(scriptlet.parts, vec![
+            ScriptletPart::Argument(8),
+            ScriptletPart::Literal(" arguments are required to fill the ".to_owned()),
+            ScriptletPart::Argument(8),
+            ScriptletPart::Literal("th argument!".to_owned()),
+        ]);
+
+        assert_eq!(scriptlet.required_args, 8);
+    }
+
+    #[test]
+    fn double_digit_handling() {
+        let js_template = r###"No scriptlet should require {{10}} arguments!"###;
+
+        let scriptlet = Scriptlet::parse(&js_template);
+
+        assert_eq!(scriptlet.parts, vec![
+            ScriptletPart::Literal(js_template.to_owned()),
+        ]);
+
+        assert_eq!(scriptlet.required_args, 0);
     }
 
     #[test]
@@ -261,5 +306,7 @@ mod tests {
         ];
 
         assert_eq!(scriptlet.parts, expected_parts);
+
+        assert_eq!(scriptlet.required_args, 2);
     }
 }
