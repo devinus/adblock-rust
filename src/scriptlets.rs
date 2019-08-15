@@ -6,17 +6,26 @@ lazy_static! {
     static ref TEMPLATE_ARGUMENT_RE: Regex = Regex::new(r"\{\{\d\}\}").unwrap();
 }
 
+/// A set of parsed scriptlet templates, indexed by name.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
 pub struct Scriptlets {
     scriptlets: HashMap<String, Scriptlet>,
 }
 
+/// Scriptlets are stored as a sequence of literal strings, interspersed with placeholders for
+/// externally-passed arguments.
+///
+/// `required_args` counts the number of arguments required <b>not</b> including the always-present
+/// name of the script.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
 pub struct Scriptlet {
     parts: Vec<ScriptletPart>,
     required_args: usize,
 }
 
+/// A single part of the literal/argument sequence of a Scriptlet template.
+///
+/// Note that arguments are 1-indexed. The argument with index 0 is the name of the script.
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub enum ScriptletPart {
     Literal(String),
