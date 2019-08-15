@@ -30,4 +30,5 @@ pub mod url_parser;
 pub mod engine;
 pub mod filter_lists;
 pub mod resources;
+mod scriptlets;
 pub mod cosmetic_filter_cache;
