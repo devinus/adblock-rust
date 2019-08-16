@@ -1,9 +1,15 @@
 use std::collections::HashMap;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 
 lazy_static! {
     static ref TEMPLATE_ARGUMENT_RE: Regex = Regex::new(r"\{\{\d\}\}").unwrap();
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ScriptletError {
+    WrongNumberOfArguments,
 }
 
 /// A set of parsed scriptlet templates, indexed by name.
@@ -30,6 +36,15 @@ pub struct Scriptlet {
 pub enum ScriptletPart {
     Literal(String),
     Argument(usize),
+}
+
+impl ScriptletPart {
+    fn patched<'a>(&'a self, args: &'a [Cow<'a, str>]) -> &'a str {
+        match self {
+            Self::Literal(literal) => &literal,
+            Self::Argument(index) => args[index - 1].as_ref(),
+        }
+    }
 }
 
 impl Scriptlet {
@@ -63,6 +78,18 @@ impl Scriptlet {
         }
 
         Self { parts, required_args }
+    }
+
+    /// Omit the 0th element of `args` (the scriptlet name) when calling this method.
+    fn patch<'a>(&self, args: &[Cow<'a, str>]) -> Result<String, ScriptletError> {
+        if args.len() != self.required_args {
+            return Err(ScriptletError::WrongNumberOfArguments);
+        }
+        // scriptlet templates are around 2000 characters in length
+        let mut output_scriptlet = String::with_capacity(4096);
+        self.parts.iter().for_each(|part| output_scriptlet += part.patched(args));
+
+        Ok(output_scriptlet)
     }
 }
 
