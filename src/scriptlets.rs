@@ -408,4 +408,34 @@ mod tests {
             Err(ScriptletError::WrongNumberOfArguments),
         );
     }
+
+    #[test]
+    fn parse_argslist() {
+        let args = parse_scriptlet_args("scriptlet, hello world, foobar");
+        assert_eq!(args, vec!["scriptlet", "hello world", "foobar"]);
+    }
+
+    #[test]
+    fn parse_argslist_noargs() {
+        let args = parse_scriptlet_args("scriptlet");
+        assert_eq!(args, vec!["scriptlet"]);
+    }
+
+    #[test]
+    fn parse_argslist_empty() {
+        let args = parse_scriptlet_args("");
+        assert_eq!(args, Vec::<Cow<str>>::new());
+    }
+
+    #[test]
+    fn parse_argslist_commas() {
+        let args = parse_scriptlet_args("scriptletname, one\\, two\\, three, four");
+        assert_eq!(args, vec!["scriptletname", "one, two, three", "four"]);
+    }
+
+    #[test]
+    fn parse_argslist_badchars() {
+        let args = parse_scriptlet_args(r##"scriptlet, "; window.location.href = bad.com; , '; alert("you're\, hacked");    ,    \u\r\l(bad.com) "##);
+        assert_eq!(args, vec!["scriptlet", "; window.location.href = bad.com;", "; alert(youre, hacked);", "url(bad.com)"]);
+    }
 }
