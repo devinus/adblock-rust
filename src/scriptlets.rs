@@ -345,4 +345,41 @@ mod tests {
 
         assert_eq!(scriptlet.required_args, 2);
     }
+
+    #[test]
+    fn patches_simple_scriptlet() {
+        let scriptlet = Scriptlet::parse(r###"Hello {{1}}! My name is {{2}}."###);
+        assert_eq!(scriptlet.required_args, 2);
+        assert_eq!(
+            scriptlet.patch(&vec!["world".into(), "adblock-rust".into()]),
+            Ok("Hello world! My name is adblock-rust.".to_owned()),
+        );
+    }
+
+    #[test]
+    fn patches_no_args() {
+        let scriptlet = Scriptlet::parse("This has no arguments.");
+        assert_eq!(scriptlet.required_args, 0);
+        assert_eq!(scriptlet.patch(&vec![]), Ok("This has no arguments.".to_owned()));
+    }
+
+    #[test]
+    fn patch_too_many_args() {
+        let scriptlet = Scriptlet::parse("");
+        assert_eq!(scriptlet.required_args, 0);
+        assert_eq!(
+            scriptlet.patch(&vec!["a".into()]),
+            Err(ScriptletError::WrongNumberOfArguments),
+        );
+    }
+
+    #[test]
+    fn patch_too_few_args() {
+        let scriptlet = Scriptlet::parse(r###"{{1}} + {{6}}"###);
+        assert_eq!(scriptlet.required_args, 6);
+        assert_eq!(
+            scriptlet.patch(&vec!["cookies".into(), "cream".into()]),
+            Err(ScriptletError::WrongNumberOfArguments),
+        );
+    }
 }
