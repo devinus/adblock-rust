@@ -5,6 +5,7 @@ use std::borrow::Cow;
 
 lazy_static! {
     static ref TEMPLATE_ARGUMENT_RE: Regex = Regex::new(r"\{\{\d\}\}").unwrap();
+    static ref ESCAPE_SCRIPTLET_ARG_RE: Regex = Regex::new(r#"[\\'"]"#).unwrap();
 }
 
 #[derive(Debug, PartialEq)]
@@ -91,6 +92,31 @@ impl Scriptlet {
 
         Ok(output_scriptlet)
     }
+}
+
+/// Parses the inner contents of a `+js(...)` block into a Vec of its comma-delimited elements.
+///
+/// A literal comma is produced by the '\,' pattern. Otherwise, all '\', '"', and ''' characters
+/// are erased in the resulting arguments.
+pub fn parse_scriptlet_args<'a>(args: &'a str) -> Vec<Cow<'a, str>> {
+    let mut args_vec = vec![];
+    let mut find_start = 0;
+    let mut after_last_delim = 0;
+    while let Some(comma_loc) = args[find_start..].find(',') {
+        let comma_loc = find_start + comma_loc;
+        if &args[comma_loc - 1..comma_loc] == "\\" {
+            find_start = comma_loc + 1;
+            continue;
+        }
+        args_vec.push(ESCAPE_SCRIPTLET_ARG_RE.replace_all(args[after_last_delim..comma_loc].trim(), ""));
+        after_last_delim = comma_loc + 1;
+        find_start = comma_loc + 1;
+    }
+    if after_last_delim != args.len() {
+        args_vec.push(ESCAPE_SCRIPTLET_ARG_RE.replace_all(args[after_last_delim..].trim(), ""));
+    }
+
+    args_vec
 }
 
 #[cfg(test)]
