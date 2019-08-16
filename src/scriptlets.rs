@@ -10,6 +10,8 @@ lazy_static! {
 
 #[derive(Debug, PartialEq)]
 pub enum ScriptletError {
+    NoMatchingScriptlet,
+    MissingScriptletName,
     WrongNumberOfArguments,
 }
 
@@ -91,6 +93,22 @@ impl Scriptlet {
         self.parts.iter().for_each(|part| output_scriptlet += part.patched(args));
 
         Ok(output_scriptlet)
+    }
+}
+
+impl Scriptlets {
+    pub fn get_scriptlet(&self, scriptlet_args: &str) -> Result<String, ScriptletError> {
+        let scriptlet_args = parse_scriptlet_args(scriptlet_args);
+        if scriptlet_args.is_empty() {
+            return Err(ScriptletError::MissingScriptletName);
+        }
+        let scriptlet_name = &scriptlet_args[0];
+        let args = &scriptlet_args[1..];
+        let template = self.scriptlets
+            .get(scriptlet_name.as_ref())
+            .ok_or_else(|| ScriptletError::NoMatchingScriptlet)?;
+
+        template.patch(args)
     }
 }
 
