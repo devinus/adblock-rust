@@ -6,7 +6,12 @@ use std::borrow::Cow;
 lazy_static! {
     static ref TEMPLATE_ARGUMENT_RE: Regex = Regex::new(r"\{\{\d\}\}").unwrap();
     static ref ESCAPE_SCRIPTLET_ARG_RE: Regex = Regex::new(r#"[\\'"]"#).unwrap();
+    static ref TOP_COMMENT_RE: Regex = Regex::new(r#"^/\*[\S\s]+?\n\*/\s*"#).unwrap();
+    static ref NON_EMPTY_LINE_RE: Regex = Regex::new(r#"\S"#).unwrap();
 }
+
+// scriptlet templates are around 2000 characters in length
+const SCRIPTLET_ALLOC_SIZE: usize = 4096;
 
 #[derive(Debug, PartialEq)]
 pub enum ScriptletError {
@@ -19,6 +24,7 @@ pub enum ScriptletError {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
 pub struct Scriptlets {
     scriptlets: HashMap<String, Scriptlet>,
+    aliases: HashMap<String, String>,
 }
 
 /// Scriptlets are stored as a sequence of literal strings, interspersed with placeholders for
@@ -88,8 +94,7 @@ impl Scriptlet {
         if args.len() != self.required_args {
             return Err(ScriptletError::WrongNumberOfArguments);
         }
-        // scriptlet templates are around 2000 characters in length
-        let mut output_scriptlet = String::with_capacity(4096);
+        let mut output_scriptlet = String::with_capacity(SCRIPTLET_ALLOC_SIZE);
         self.parts.iter().for_each(|part| output_scriptlet += part.patched(args));
 
         Ok(output_scriptlet)
@@ -102,13 +107,86 @@ impl Scriptlets {
         if scriptlet_args.is_empty() {
             return Err(ScriptletError::MissingScriptletName);
         }
-        let scriptlet_name = &scriptlet_args[0];
+        let scriptlet_name = without_js_extension(&scriptlet_args[0].as_ref());
         let args = &scriptlet_args[1..];
+        let actual_name = if let Some(aliased_name) = self.aliases.get(scriptlet_name) {
+            aliased_name
+        } else {
+            scriptlet_name
+        };
         let template = self.scriptlets
-            .get(scriptlet_name.as_ref())
+            .get(actual_name)
             .ok_or_else(|| ScriptletError::NoMatchingScriptlet)?;
 
         template.patch(args)
+    }
+
+    pub fn parse_template_file(data: &str) -> Self {
+        let uncommented = TOP_COMMENT_RE.replace_all(data, "");
+        let mut scriptlets = HashMap::new();
+        let mut aliases = HashMap::new();
+        let mut name: Option<&str> = None;
+        let mut details: HashMap<&str, &str> = HashMap::new();
+        let mut script = String::with_capacity(SCRIPTLET_ALLOC_SIZE);
+
+        for line in uncommented.lines() {
+            if line.starts_with('#') || line.starts_with("// ") {
+                continue;
+            }
+
+            if name.is_none() {
+                if line.starts_with("/// ") {
+                    name = Some(line[4..].trim());
+                }
+                continue;
+            }
+
+            if line.starts_with("/// ") {
+                let mut line = line[4..].split_whitespace();
+                let prop = line.next().expect("Detail line has property name");
+                let value = line.next().expect("Detail line has property value");
+                details.insert(prop, value);
+                continue;
+            }
+
+            if NON_EMPTY_LINE_RE.is_match(line) {
+                script += line.trim();
+                continue;
+            }
+
+            let s = Scriptlet::parse(&script);
+
+            {
+                let mut name = name.expect("Scriptlet name must be specified");
+                name = without_js_extension(name);
+                if let Some(alias) = details.get("alias") {
+                    let alias = without_js_extension(alias);
+                    aliases.insert((*alias).to_owned(), name.to_owned());
+                }
+                scriptlets.insert(name.to_owned(), s);
+            }
+
+            name = None;
+            details.clear();
+            script.clear();
+        }
+
+        Scriptlets {
+            scriptlets,
+            aliases,
+        }
+    }
+
+    pub fn add_scriptlet(&mut self, name: String, scriptlet: Scriptlet) {
+        self.scriptlets.insert(name, scriptlet);
+    }
+}
+
+fn without_js_extension(scriptlet_name: &str) -> &str {
+    if scriptlet_name.ends_with(".js") {
+        &scriptlet_name[..scriptlet_name.len() - 3]
+    } else {
+        &scriptlet_name
     }
 }
 
@@ -466,6 +544,7 @@ mod tests {
         scriptlets.insert("null".to_owned(), Scriptlet::parse("(()=>{})()"));
         let scriptlets = Scriptlets {
             scriptlets,
+            aliases: Default::default(),
         };
 
         assert_eq!(scriptlets.get_scriptlet("greet, world, adblock-rust"), Ok("console.log('Hello world, my name is adblock-rust')".into()));
