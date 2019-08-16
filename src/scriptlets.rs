@@ -456,4 +456,27 @@ mod tests {
         let args = parse_scriptlet_args(r##"scriptlet, "; window.location.href = bad.com; , '; alert("you're\, hacked");    ,    \u\r\l(bad.com) "##);
         assert_eq!(args, vec!["scriptlet", "; window.location.href = bad.com;", "; alert(youre, hacked);", "url(bad.com)"]);
     }
+
+    #[test]
+    fn get_patched_scriptlets() {
+        let mut scriptlets = HashMap::new();
+        scriptlets.insert("greet".to_owned(), Scriptlet::parse("console.log('Hello {{1}}, my name is {{2}}')"));
+        scriptlets.insert("alert".to_owned(), Scriptlet::parse("alert('{{1}}')"));
+        scriptlets.insert("blocktimer".to_owned(), Scriptlet::parse("setTimeout(blockAds, {{1}})"));
+        scriptlets.insert("null".to_owned(), Scriptlet::parse("(()=>{})()"));
+        let scriptlets = Scriptlets {
+            scriptlets,
+        };
+
+        assert_eq!(scriptlets.get_scriptlet("greet, world, adblock-rust"), Ok("console.log('Hello world, my name is adblock-rust')".into()));
+        assert_eq!(scriptlets.get_scriptlet("alert, All systems are go!! "), Ok("alert('All systems are go!!')".into()));
+        assert_eq!(scriptlets.get_scriptlet("alert, Uh oh\\, check the logs..."), Ok("alert('Uh oh, check the logs...')".into()));
+        assert_eq!(scriptlets.get_scriptlet("blocktimer, 3000"), Ok("setTimeout(blockAds, 3000)".into()));
+        assert_eq!(scriptlets.get_scriptlet("null"), Ok("(()=>{})()".into()));
+
+        assert_eq!(scriptlets.get_scriptlet("unit-testing"), Err(ScriptletError::NoMatchingScriptlet));
+        assert_eq!(scriptlets.get_scriptlet("null, null"), Err(ScriptletError::WrongNumberOfArguments));
+        assert_eq!(scriptlets.get_scriptlet("greet, everybody"), Err(ScriptletError::WrongNumberOfArguments));
+        assert_eq!(scriptlets.get_scriptlet(""), Err(ScriptletError::MissingScriptletName));
+    }
 }
