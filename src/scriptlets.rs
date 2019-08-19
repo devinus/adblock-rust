@@ -558,4 +558,69 @@ mod tests {
         assert_eq!(scriptlets.get_scriptlet("greet, everybody"), Err(ScriptletError::WrongNumberOfArguments));
         assert_eq!(scriptlets.get_scriptlet(""), Err(ScriptletError::MissingScriptletName));
     }
+
+    #[test]
+    fn parse_template_file_format() {
+        let data = r##"/*******************************************************************************
+
+    This is a bunch of emulated copyright information.
+
+    It is formatted similar to the header at the top of the uBlock Origin scriptlet template file,
+    which can be found at the following URL:
+    https://github.com/gorhill/uBlock/blob/master/assets/resources/scriptlets.js
+*/
+
+// The lines below are skipped by the resource parser. Purpose is clean
+// jshinting.
+(function() {
+// >>>> start of private namespace
+'use strict';
+
+
+
+
+
+/// abort-current-inline-script.js
+/// alias acis.js
+(function() {
+    alert("hi");
+})();
+
+
+/// abort-on-property-read.js
+/// alias aopr.js
+(function() {
+    confirm("Do you want to {{1}}?");
+})();
+
+"##;
+        let scriptlets = Scriptlets::parse_template_file(data);
+
+        dbg!(&scriptlets);
+
+        assert_eq!(
+            scriptlets.get_scriptlet("aopr, code"),
+            Ok("(function() {confirm(\"Do you want to code?\");})();".to_owned()),
+        );
+
+        assert_eq!(
+            scriptlets.get_scriptlet("abort-on-property-read, write tests"),
+            Ok("(function() {confirm(\"Do you want to write tests?\");})();".to_owned()),
+        );
+
+        assert_eq!(
+            scriptlets.get_scriptlet("abort-on-property-read.js, block advertisements"),
+            Ok("(function() {confirm(\"Do you want to block advertisements?\");})();".to_owned()),
+        );
+
+        assert_eq!(
+            scriptlets.get_scriptlet("acis"),
+            Ok("(function() {alert(\"hi\");})();".to_owned()),
+        );
+
+        assert_eq!(
+            scriptlets.get_scriptlet("acis.js"),
+            Ok("(function() {alert(\"hi\");})();".to_owned()),
+        );
+    }
 }
